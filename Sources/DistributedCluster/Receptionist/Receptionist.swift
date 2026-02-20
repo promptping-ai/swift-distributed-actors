@@ -359,6 +359,9 @@ extension _ActorRef: _ReceptionistGuest {
 ///     - `Receptionist.Register`
 ///     - `Receptionist.Subscribe`
 /// INTERNAL API
+/// @unchecked Sendable: Base class for receptionist message hierarchy. Must be a class for Codable
+/// inheritance (Register, Lookup, Subscribe are generic subclasses). The base class has no mutable state;
+/// subclasses carry immutable references (actor refs, keys) that are themselves safe to share.
 public class _ReceptionistMessage: Codable, @unchecked Sendable {}
 
 // ==== ----------------------------------------------------------------------------------------------------------------

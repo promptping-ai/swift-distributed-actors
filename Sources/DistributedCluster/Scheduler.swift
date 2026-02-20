@@ -17,7 +17,7 @@ import Dispatch
 import DistributedActorsConcurrencyHelpers
 
 @usableFromInline
-protocol Cancelable {
+protocol Cancelable: Sendable {
     /// Attempts to cancel the cancellable. Returns true when successful, or false
     /// when unsuccessful, or it was already cancelled.
     func cancel()

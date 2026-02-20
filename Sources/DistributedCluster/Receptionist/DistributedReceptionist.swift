@@ -381,6 +381,9 @@ internal final class DistributedReceptionistStorage {
 // ==== ----------------------------------------------------------------------------------------------------------------
 
 /// Represents a local subscription (for `receptionist.subscribe`) for a specific key.
+/// @unchecked Sendable: This class is always accessed from within the owning actor (OpLogDistributedReceptionist).
+/// The `seenActorRegistrations` mutable state is only modified by that single actor. The `onNext` closure is
+/// marked `@Sendable`. Cannot be a struct due to identity semantics (ObjectIdentifier-based subscriptionID).
 internal final class AnyDistributedReceptionListingSubscription: Hashable, @unchecked Sendable, CustomStringConvertible {
     let subscriptionID: ObjectIdentifier
     let key: AnyDistributedReceptionKey
