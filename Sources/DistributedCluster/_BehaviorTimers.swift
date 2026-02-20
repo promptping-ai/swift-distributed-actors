@@ -80,12 +80,16 @@ extension _TimerKey: ExpressibleByStringLiteral, ExpressibleByStringInterpolatio
     }
 }
 
-public final class _BehaviorTimers<Message: Codable> {
+// @unchecked Sendable: Legacy C mailbox runtime. This type is planned for removal
+// when _ActorShell is replaced with Swift's native actor runtime. See GitHub issue #5.
+public final class _BehaviorTimers<Message: Codable>: @unchecked Sendable {
     @usableFromInline
     internal var timerGen: Int = 0
 
     // TODO: eventually replace with our own scheduler implementation
     @usableFromInline
+    // MIGRATION NOTE: DispatchQueue usage will be eliminated when this class is replaced with
+    // a Swift actor. See GitHub issue #5.
     internal let dispatchQueue = DispatchQueue.global()
     internal var installedTimers: [_TimerKey: Timer<Message>] = [:]
     @usableFromInline
