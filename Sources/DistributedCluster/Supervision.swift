@@ -388,7 +388,7 @@ internal enum ProcessingAction<Message: Codable> {
     case message(Message)
     case signal(_Signal)
     case closure(ActorClosureCarry)
-    case continuation(() throws -> _Behavior<Message>)  // TODO: make it a Carry type for better debugging
+    case continuation(@Sendable () throws -> _Behavior<Message>)  // TODO: make it a Carry type for better debugging
     case subMessage(SubMessageCarry)
 }
 
@@ -432,7 +432,7 @@ internal class Supervisor<Message: Codable> {
         return try self.interpretSupervised0(target: target, context: context, processingAction: .subMessage(subMessage))
     }
 
-    internal final func interpretSupervised(target: _Behavior<Message>, context: _ActorContext<Message>, closure: @escaping () throws -> _Behavior<Message>) throws -> _Behavior<Message> {
+    internal final func interpretSupervised(target: _Behavior<Message>, context: _ActorContext<Message>, closure: @Sendable @escaping () throws -> _Behavior<Message>) throws -> _Behavior<Message> {
         traceLog_Supervision("CALLING CLOSURE: \(target)")
         return try self.interpretSupervised0(
             target: target,

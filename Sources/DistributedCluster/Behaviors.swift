@@ -35,14 +35,14 @@ extension _Behavior {
     /// Additionally exposes `ActorContext` which can be used to e.g. log messages, spawn child actors etc.
     ///
     /// - SeeAlso: `receiveMessage` convenience behavior for when you do not need to access the `ActorContext`.
-    public static func receive(_ handle: @escaping (_ActorContext<Message>, Message) throws -> _Behavior<Message>) -> _Behavior {
+    public static func receive(_ handle: @Sendable @escaping (_ActorContext<Message>, Message) throws -> _Behavior<Message>) -> _Behavior {
         _Behavior(underlying: .receive(handle))
     }
 
     /// Defines a behavior that will be executed with an incoming message by its hosting actor.
     ///
     /// - SeeAlso: `receive` convenience if you also need to access the `ActorContext`.
-    public static func receiveMessage(_ handle: @escaping (Message) throws -> _Behavior<Message>) -> _Behavior {
+    public static func receiveMessage(_ handle: @Sendable @escaping (Message) throws -> _Behavior<Message>) -> _Behavior {
         _Behavior(underlying: .receiveMessage(handle))
     }
 }
@@ -222,7 +222,7 @@ extension _Behavior {
     ///
     /// This can be used to obtain the context, logger or perform actions right when the actor starts
     /// (e.g. send an initial message, or subscribe to some event stream, configure receive timeouts, etc.).
-    public static func setup(_ onStart: @escaping (_ActorContext<Message>) throws -> _Behavior<Message>) -> _Behavior {
+    public static func setup(_ onStart: @Sendable @escaping (_ActorContext<Message>) throws -> _Behavior<Message>) -> _Behavior {
         _Behavior(underlying: .setup(onStart))
     }
 
@@ -240,7 +240,7 @@ extension _Behavior {
     /// and the actor itself will stop. Return this behavior to stop your actors. This is a convenience overload that
     /// allows users to specify a closure that will only be called on receipt of `_PostStop` and therefore does not
     /// need to get the signal passed in. It also does not need to return a new behavior, as the actor is already stopping.
-    public static func stop(_ postStop: @escaping (_ActorContext<Message>) throws -> Void) -> _Behavior<Message> {
+    public static func stop(_ postStop: @Sendable @escaping (_ActorContext<Message>) throws -> Void) -> _Behavior<Message> {
         _Behavior.stop(
             postStop: _Behavior.receiveSignal { context, signal in
                 if signal is _Signals._PostStop {
@@ -300,7 +300,7 @@ extension _Behavior {
     ///
     /// - SeeAlso: `Signals` for a listing of signals that may be handled using this behavior.
     /// - SeeAlso: `receiveSpecificSignal` for convenience version of this behavior, simplifying handling a single type of `Signal`.
-    public func receiveSignal(_ handle: @escaping (_ActorContext<Message>, _Signal) throws -> _Behavior<Message>) -> _Behavior<Message> {
+    public func receiveSignal(_ handle: @Sendable @escaping (_ActorContext<Message>, _Signal) throws -> _Behavior<Message>) -> _Behavior<Message> {
         _Behavior(
             underlying: .signalHandling(
                 handleMessage: self,
@@ -310,7 +310,7 @@ extension _Behavior {
     }
 
     public func _receiveSignalAsync(
-        _ handle: @escaping @Sendable (_ActorContext<Message>, _Signal) async throws -> _Behavior<Message>
+        _ handle: @Sendable @escaping (_ActorContext<Message>, _Signal) async throws -> _Behavior<Message>
     ) -> _Behavior<Message> {
         _Behavior(
             underlying: .signalHandlingAsync(
@@ -341,7 +341,7 @@ extension _Behavior {
     ///
     /// - SeeAlso: `Signals` for a listing of signals that may be handled using this behavior.
     /// - SeeAlso: `receiveSpecificSignal` for convenience version of this behavior, simplifying handling a single type of `Signal`.
-    public static func receiveSignal(_ handle: @escaping (_ActorContext<Message>, _Signal) throws -> _Behavior<Message>) -> _Behavior<Message> {
+    public static func receiveSignal(_ handle: @Sendable @escaping (_ActorContext<Message>, _Signal) throws -> _Behavior<Message>) -> _Behavior<Message> {
         _Behavior(
             underlying: .signalHandling(
                 handleMessage: .unhandled,
@@ -365,7 +365,7 @@ extension _Behavior {
     ///
     /// - SeeAlso: `Signals` for a listing of signals that may be handled using this behavior.
     /// - SeeAlso: `receiveSignal` which allows receiving multiple types of signals.
-    public func receiveSpecificSignal<SpecificSignal: _Signal>(_: SpecificSignal.Type, _ handle: @escaping (_ActorContext<Message>, SpecificSignal) throws -> _Behavior<Message>) -> _Behavior<Message> {
+    public func receiveSpecificSignal<SpecificSignal: _Signal>(_: SpecificSignal.Type, _ handle: @Sendable @escaping (_ActorContext<Message>, SpecificSignal) throws -> _Behavior<Message>) -> _Behavior<Message> {
         // TODO: better type printout so we know we only handle SpecificSignal with this one
         self.receiveSignal { context, signal in
             switch signal {
@@ -392,7 +392,7 @@ extension _Behavior {
     ///
     /// - SeeAlso: `Signals` for a listing of signals that may be handled using this behavior.
     /// - SeeAlso: `receiveSignal` which allows receiving multiple types of signals.
-    public static func receiveSpecificSignal<SpecificSignal: _Signal>(_: SpecificSignal.Type, _ handle: @escaping (_ActorContext<Message>, SpecificSignal) throws -> _Behavior<Message>) -> _Behavior<Message> {
+    public static func receiveSpecificSignal<SpecificSignal: _Signal>(_: SpecificSignal.Type, _ handle: @Sendable @escaping (_ActorContext<Message>, SpecificSignal) throws -> _Behavior<Message>) -> _Behavior<Message> {
         _Behavior(
             underlying: .signalHandling(
                 handleMessage: .unhandled,
@@ -415,7 +415,7 @@ extension _Behavior {
 extension _Behavior {
     /// Allows handling signals such as termination or lifecycle events.
     @usableFromInline
-    internal static func signalHandling(handleMessage: _Behavior<Message>, handleSignal: @escaping (_ActorContext<Message>, _Signal) throws -> _Behavior<Message>) -> _Behavior<Message> {
+    internal static func signalHandling(handleMessage: _Behavior<Message>, handleSignal: @Sendable @escaping (_ActorContext<Message>, _Signal) throws -> _Behavior<Message>) -> _Behavior<Message> {
         _Behavior(underlying: .signalHandling(handleMessage: handleMessage, handleSignal: handleSignal))
     }
 
@@ -423,7 +423,7 @@ extension _Behavior {
     @usableFromInline
     internal static func signalHandlingAsync(
         handleMessage: _Behavior<Message>,
-        handleSignal: @escaping @Sendable (_ActorContext<Message>, _Signal) async throws -> _Behavior<Message>
+        handleSignal: @Sendable @escaping (_ActorContext<Message>, _Signal) async throws -> _Behavior<Message>
     ) -> _Behavior<Message> {
         _Behavior(underlying: .signalHandlingAsync(handleMessage: handleMessage, handleSignal: handleSignal))
     }
@@ -432,7 +432,7 @@ extension _Behavior {
     ///
     /// MUST be canonicalized (to .suspended before storing in an `ActorCell`, as thr suspend behavior CAN NOT handle messages.
     @usableFromInline
-    internal static func suspend<T>(handler: @escaping (Result<T, Error>) throws -> _Behavior<Message>) -> _Behavior<Message> {
+    internal static func suspend<T>(handler: @Sendable @escaping (Result<T, Error>) throws -> _Behavior<Message>) -> _Behavior<Message> {
         _Behavior(
             underlying: .suspend(handler: { result in
                 try handler(result.map { $0 as! T })  // cast here is okay, as user APIs are typed, so we should always get a T
@@ -446,7 +446,7 @@ extension _Behavior {
     /// This usually happens when an async operation that caused the suspension
     /// is completed.
     @usableFromInline
-    internal static func suspended(previousBehavior: _Behavior<Message>, handler: @escaping (Result<Any, Error>) throws -> _Behavior<Message>) -> _Behavior<Message> {
+    internal static func suspended(previousBehavior: _Behavior<Message>, handler: @Sendable @escaping (Result<Any, Error>) throws -> _Behavior<Message>) -> _Behavior<Message> {
         _Behavior(underlying: .suspended(previousBehavior: previousBehavior, handler: handler))
     }
 
@@ -464,15 +464,15 @@ extension _Behavior {
     }
 }
 
-// @unchecked Sendable: Contains non-@Sendable closures for message/signal handling.
-// Phase 3: behavior closures need @Sendable annotation before this can be checked Sendable.
+// @unchecked Sendable: Closure cases now annotated @Sendable. Remaining @unchecked is due to
+// non-Sendable _ActorContext captured by callers (safe: single-threaded mailbox execution).
 internal enum __Behavior<Message: Codable>: @unchecked Sendable {
-    case setup(_ onStart: (_ActorContext<Message>) throws -> _Behavior<Message>)
+    case setup(_ onStart: @Sendable (_ActorContext<Message>) throws -> _Behavior<Message>)
 
-    case receive(_ handle: (_ActorContext<Message>, Message) throws -> _Behavior<Message>)
+    case receive(_ handle: @Sendable (_ActorContext<Message>, Message) throws -> _Behavior<Message>)
     case receiveAsync(_ handle: @Sendable (_ActorContext<Message>, Message) async throws -> _Behavior<Message>)
 
-    case receiveMessage(_ handle: (Message) throws -> _Behavior<Message>)
+    case receiveMessage(_ handle: @Sendable (Message) throws -> _Behavior<Message>)
     case receiveMessageAsync(_ handle: @Sendable (Message) async throws -> _Behavior<Message>)
 
     indirect case stop(postStop: _Behavior<Message>?, reason: StopReason)
@@ -480,7 +480,7 @@ internal enum __Behavior<Message: Codable>: @unchecked Sendable {
 
     indirect case signalHandling(
         handleMessage: _Behavior<Message>,
-        handleSignal: (_ActorContext<Message>, _Signal) throws -> _Behavior<Message>
+        handleSignal: @Sendable (_ActorContext<Message>, _Signal) throws -> _Behavior<Message>
     )
     indirect case signalHandlingAsync(
         handleMessage: _Behavior<Message>,
@@ -494,8 +494,8 @@ internal enum __Behavior<Message: Codable>: @unchecked Sendable {
 
     indirect case orElse(first: _Behavior<Message>, second: _Behavior<Message>)
 
-    case suspend(handler: (Result<Any, Error>) throws -> _Behavior<Message>)
-    indirect case suspended(previousBehavior: _Behavior<Message>, handler: (Result<Any, Error>) throws -> _Behavior<Message>)
+    case suspend(handler: @Sendable (Result<Any, Error>) throws -> _Behavior<Message>)
+    indirect case suspended(previousBehavior: _Behavior<Message>, handler: @Sendable (Result<Any, Error>) throws -> _Behavior<Message>)
 }
 
 // @unchecked Sendable: Contains _Supervision.Failure which wraps Error (not Sendable).
