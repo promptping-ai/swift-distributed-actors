@@ -36,9 +36,8 @@ import SwiftProtobuf
 /// for any kind of Message type that is possible to be received by any spawned `Actor`, sub-receive, `Gossip` instance etc.
 ///
 // Serialization is @unchecked Sendable because:
-// - _serializers (mutable dictionary) is protected by _serializersLock for all reads/writes.
-//   Exception: error-path reads in serialize/deserialize access _serializers without the lock
-//   for diagnostic hint construction only (known limitation — TODO: lock those reads too).
+// - _serializers (mutable dictionary) is protected by _serializersLock for all reads/writes,
+//   including error-path diagnostic reads (each acquires a reader lock before accessing _serializers).
 // - _serializersLock itself (ReadWriteLock) has no Sendable conformance, requiring @unchecked.
 // - settings (Serialization.Settings struct) is immutable after init and requires no locking.
 // Both (1) and (2) must be resolved before this conformance can be made checked.
@@ -474,7 +473,9 @@ extension Serialization {
                 }
             } else {
                 self.debugPrintSerializerTable(header: "Unable to find serializer for manifest (\(manifest)),message type: \(String(reflecting: messageType))")
-                throw SerializationError(.noSerializerRegisteredFor(manifest: manifest, hint: "Type: \(messageType), id: \(messageType), known serializers: \(self._serializers)"))
+                // NOTE: _serializers read without lock — diagnostic only, see @unchecked Sendable comment above.
+                let knownSerializers = self._serializersLock.withReaderLock { self._serializers }
+                throw SerializationError(.noSerializerRegisteredFor(manifest: manifest, hint: "Type: \(messageType), id: \(messageType), known serializers: \(knownSerializers)"))
             }
 
             return Serialized(manifest: manifest, buffer: result)
@@ -619,7 +620,9 @@ extension Serialization {
                         })
                 else {
                     self.debugPrintSerializerTable(header: "Unable to find serializer for manifest (\(manifest)),message type: \(String(reflecting: manifestMessageType))")
-                    throw SerializationError(.noSerializerRegisteredFor(manifest: manifest, hint: "Manifest Type: \(manifestMessageType), id: \(messageTypeID), known serializers: \(self._serializers)"))
+                    // NOTE: _serializers read without lock — diagnostic only, see @unchecked Sendable comment above.
+                    let knownSerializers = self._serializersLock.withReaderLock { self._serializers }
+                    throw SerializationError(.noSerializerRegisteredFor(manifest: manifest, hint: "Manifest Type: \(manifestMessageType), id: \(messageTypeID), known serializers: \(knownSerializers)"))
                 }
 
                 result = try serializer.tryDeserialize(buffer)
