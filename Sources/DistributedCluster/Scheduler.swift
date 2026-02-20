@@ -38,6 +38,8 @@ internal protocol Scheduler: Sendable {
     func schedule<Message>(initialDelay: Duration, interval: Duration, receiver: _ActorRef<Message>, message: Message) -> Cancelable
 }
 
+// @unchecked Sendable: flag is a ManagedAtomic<Bool> which is itself Sendable and provides
+// sequentially-consistent atomic operations. No other mutable state.
 final class FlagCancelable: Cancelable, @unchecked Sendable {
     private let flag: ManagedAtomic<Bool> = .init(false)
 
