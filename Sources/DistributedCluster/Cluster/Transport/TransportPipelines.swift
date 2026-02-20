@@ -469,6 +469,7 @@ internal final class SystemMessageRedeliveryHandler: ChannelDuplexHandler, @unch
     }
 
     private func deserializeThenHandle<T>(type: T.Type, wireEnvelope: Wire.Envelope, callback: @escaping (T) -> Void) {
+        nonisolated(unsafe) let callback = callback
         self.serializationPool.deserializeAny(
             from: wireEnvelope.payload,
             using: wireEnvelope.manifest,

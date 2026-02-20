@@ -49,8 +49,9 @@ public struct ClusterControl {
     }
 
     internal func updateMembershipSnapshot(_ snapshot: Cluster.Membership) {
+        let holder = self._membershipSnapshotHolder
         Task {
-            await self._membershipSnapshotHolder.update(snapshot)
+            await holder.update(snapshot)
         }
     }
 
@@ -230,11 +231,16 @@ public struct ClusterControl {
     ///   - status: The expected member status.
     ///   - within: Duration to wait for.
     public func waitFor(_ nodes: some Collection<Cluster.Node>, _ status: Cluster.MemberStatus, within: Duration) async throws {
+        nonisolated(unsafe) let selfUnsafe = self
+        nonisolated(unsafe) let status = status
+        nonisolated(unsafe) let within = within
         try await withThrowingTaskGroup(of: Void.self) { group in
             for node in nodes {
-                group.addTask {
-                    try await self.waitFor(node, status, within: within)
+                nonisolated(unsafe) let node = node
+                let task: @Sendable () async throws -> Void = {
+                    try await selfUnsafe.waitFor(node, status, within: within)
                 }
+                group.addTask(operation: task)
             }
             // loop explicitly to propagate any error that might have been thrown
             for try await _ in group {}
@@ -248,11 +254,16 @@ public struct ClusterControl {
     ///   - atLeastStatus: The minimum expected member status.
     ///   - within: Duration to wait for.
     public func waitFor(_ nodes: some Collection<Cluster.Node>, atLeast atLeastStatus: Cluster.MemberStatus, within: Duration) async throws {
+        nonisolated(unsafe) let selfUnsafe = self
+        nonisolated(unsafe) let atLeastStatus = atLeastStatus
+        nonisolated(unsafe) let within = within
         try await withThrowingTaskGroup(of: Void.self) { group in
             for node in nodes {
-                group.addTask {
-                    _ = try await self.waitFor(node, atLeast: atLeastStatus, within: within)
+                nonisolated(unsafe) let node = node
+                let task: @Sendable () async throws -> Void = {
+                    _ = try await selfUnsafe.waitFor(node, atLeast: atLeastStatus, within: within)
                 }
+                group.addTask(operation: task)
             }
             // loop explicitly to propagate any error that might have been thrown
             for try await _ in group {}

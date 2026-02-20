@@ -152,7 +152,7 @@ public distributed actor WorkerPool<Worker: DistributedWorker>: DistributedWorke
                 (true, .awaitNewWorkers):
                 self.log.log(level: self.logLevel, "Worker pool is empty, waiting for new worker.")
 
-                try await _withClusterCancellableCheckedContinuation(of: Void.self) { cccc in
+                let closureBody: (ClusterCancellableCheckedContinuation<Void>) -> Void = { cccc in
                     self.newWorkerContinuations.append(cccc)
                     let log = self.log
                     cccc.onCancel { cccc in
@@ -163,6 +163,8 @@ public distributed actor WorkerPool<Worker: DistributedWorker>: DistributedWorke
                         }
                     }
                 }
+                nonisolated(unsafe) let unsafeClosureBody = closureBody
+                try await _withClusterCancellableCheckedContinuation(of: Void.self, unsafeClosureBody)
             case (true, .throw(let error)):
                 throw error
             }

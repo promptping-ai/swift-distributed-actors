@@ -477,6 +477,7 @@ extension ClusterShell {
     }
 
     private func publish(_ event: Cluster.Event, to eventStream: ClusterEventStream) {
+        nonisolated(unsafe) let eventStream = eventStream
         Task {
             await eventStream.publish(event)
         }  // TODO(send): we need "send"

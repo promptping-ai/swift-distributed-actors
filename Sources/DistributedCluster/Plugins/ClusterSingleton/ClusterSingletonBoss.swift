@@ -18,6 +18,13 @@ import Logging
 import struct Foundation.Data
 import struct Foundation.UUID
 
+/// Box to bridge non-Sendable values across isolation boundaries where safety is
+/// guaranteed by the runtime (e.g., `whenLocal` on a known-local distributed actor).
+internal struct UnsafeSendableBox<T>: @unchecked Sendable {
+    let value: T
+    init(_ value: T) { self.value = value }
+}
+
 // ==== ----------------------------------------------------------------------------------------------------------------
 // MARK: Cluster singleton boss
 
@@ -117,7 +124,8 @@ internal distributed actor ClusterSingletonBoss<Act: ClusterSingleton>: ClusterS
     private func receiveClusterEvent(_ event: Cluster.Event) async throws {
         // Feed the event to `AllocationStrategy` then forward the result to `updateTargetNode`,
         // which will determine if `targetNode` has changed and react accordingly.
-        let node = await self.allocationStrategy.onClusterEvent(event)
+        nonisolated(unsafe) let strategy = self.allocationStrategy
+        let node = await strategy.onClusterEvent(event)
         try await self.updateTargetNode(node: node)
     }
 
@@ -200,6 +208,9 @@ internal distributed actor ClusterSingletonBoss<Act: ClusterSingleton>: ClusterS
             targetSingletonBossID.path = self.id.path
             let targetSingletonBoss = try Self.resolve(id: targetSingletonBossID, using: self.actorSystem)
 
+            nonisolated(unsafe) let unsafeSelf = self
+            let settingsName = self.settings.name
+            let selfPath = self.id.path
             let targetSingleton: Act = try await Backoff.exponential(
                 initialInterval: settings.locateActiveSingletonBackoff.initialInterval,
                 multiplier: settings.locateActiveSingletonBackoff.multiplier,
@@ -210,17 +221,17 @@ internal distributed actor ClusterSingletonBoss<Act: ClusterSingleton>: ClusterS
                 // confirm tha the boss is hosting the singleton, if not we may have to wait and try again
                 do {
                     guard (try? await targetSingletonBoss.hasActiveSingleton()) ?? false else {
-                        throw SingletonNotFoundNoExpectedNode(id: self.settings.name, node)
+                        throw SingletonNotFoundNoExpectedNode(id: settingsName, node)
                     }
                 } catch {
                     throw error
                 }
 
                 var targetSingletonID = ActorID(remote: otherNode, type: Self.self, incarnation: .wellKnown)
-                targetSingletonID.metadata.wellKnown = self.settings.name
-                targetSingletonID.path = self.id.path
+                targetSingletonID.metadata.wellKnown = settingsName
+                targetSingletonID.path = selfPath
 
-                return try Act.resolve(id: targetSingletonID, using: self.actorSystem)
+                return try Act.resolve(id: targetSingletonID, using: unsafeSelf.actorSystem)
             }
             self.updateSingleton(targetSingleton)
 
@@ -465,7 +476,8 @@ extension ClusterSingletonBoss {
                 ])
             )
 
-            var invocation = invocation  // can't be inout param
+            nonisolated(unsafe) var invocation = invocation  // can't be inout param
+            nonisolated(unsafe) let unsafeTarget = target
             if targetNode == selfNode,
                 let singleton = self.targetSingleton
             {
@@ -475,7 +487,7 @@ extension ClusterSingletonBoss {
                 )
                 return try await singleton.actorSystem.localCall(
                     on: singleton,
-                    target: target,
+                    target: unsafeTarget,
                     invocation: &invocation,
                     throwing: throwing,
                     returning: returning
@@ -484,7 +496,7 @@ extension ClusterSingletonBoss {
 
             return try await singleton.actorSystem.remoteCall(
                 on: singleton,
-                target: target,
+                target: unsafeTarget,
                 invocation: &invocation,
                 throwing: throwing,
                 returning: returning
@@ -517,11 +529,12 @@ extension ClusterSingletonBoss {
             ])
         )
 
-        var invocation = invocation  // can't be inout param
+        nonisolated(unsafe) var invocation = invocation  // can't be inout param
+        nonisolated(unsafe) let unsafeTarget = target
         if targetNode == selfNode,
             let singleton = self.targetSingleton
         {
-            self.log.trace("ENTER forwardOrStashRemoteCallVoid \(target) -> DIRECT LOCAL CALL")
+            self.log.trace("ENTER forwardOrStashRemoteCallVoid \(unsafeTarget) -> DIRECT LOCAL CALL")
 
             assert(
                 singleton.id.node == selfNode,
@@ -529,7 +542,7 @@ extension ClusterSingletonBoss {
             )
             return try await singleton.actorSystem.localCallVoid(
                 on: singleton,
-                target: target,
+                target: unsafeTarget,
                 invocation: &invocation,
                 throwing: throwing
             )
@@ -537,7 +550,7 @@ extension ClusterSingletonBoss {
 
         return try await singleton.actorSystem.remoteCallVoid(
             on: singleton,
-            target: target,
+            target: unsafeTarget,
             invocation: &invocation,
             throwing: throwing
         )
@@ -570,14 +583,17 @@ struct ClusterSingletonRemoteCallInterceptor<Singleton: ClusterSingleton>: Remot
         // Metatypes are inherently safe to share across concurrency boundaries.
         let throwingType = throwing
         nonisolated(unsafe) let returningType = returning
-        let result = try await self.singletonBoss.whenLocal { __secretlyKnownToBeLocal in  // TODO(distributed): this is annoying, we must track "known to be local" in typesystem instead
-            try await __secretlyKnownToBeLocal.forwardOrStashRemoteCall(target: target, invocation: invocation, throwing: throwingType, returning: returningType)
+        nonisolated(unsafe) let unsafeTarget = target
+        nonisolated(unsafe) let unsafeInvocation = invocation
+        let wrappedResult: UnsafeSendableBox<Res>? = try await self.singletonBoss.whenLocal { __secretlyKnownToBeLocal in  // TODO(distributed): this is annoying, we must track "known to be local" in typesystem instead
+            let res: Res = try await __secretlyKnownToBeLocal.forwardOrStashRemoteCall(target: unsafeTarget, invocation: unsafeInvocation, throwing: throwingType, returning: returningType)
+            return UnsafeSendableBox(res)
         }
 
-        guard let result = result else {
+        guard let wrappedResult else {
             fatalError("Unexpected remote call")
         }
-        return result
+        return wrappedResult.value
     }
 
     func interceptRemoteCallVoid<Act, Err>(
@@ -596,8 +612,10 @@ struct ClusterSingletonRemoteCallInterceptor<Singleton: ClusterSingleton>: Remot
         }
 
         let invocation = invocation  // can't capture inout param
+        nonisolated(unsafe) let unsafeTarget = target
+        nonisolated(unsafe) let unsafeInvocation = invocation
         try await self.singletonBoss.whenLocal { __secretlyKnownToBeLocal in  // TODO(distributed): this is annoying, we must track "known to be local" in typesystem instead
-            try await __secretlyKnownToBeLocal.forwardOrStashRemoteCallVoid(target: target, invocation: invocation, throwing: throwing)
+            try await __secretlyKnownToBeLocal.forwardOrStashRemoteCallVoid(target: unsafeTarget, invocation: unsafeInvocation, throwing: throwing)
         }
     }
 }

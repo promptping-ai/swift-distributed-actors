@@ -236,13 +236,14 @@ internal final class GossipShell<Gossip: Codable, Acknowledgement: Codable>: @un
                     continue
                 }
 
+                nonisolated(unsafe) let unsafeGossip = gossip
                 self.sendGossip(
                     context,
                     identifier: identifier,
                     gossip,
                     to: selectedRef,
                     onGossipAck: { ack in
-                        logic.receiveAcknowledgement(ack, from: selectedPeer, confirming: gossip)
+                        logic.receiveAcknowledgement(ack, from: selectedPeer, confirming: unsafeGossip)
                     }
                 )
             }
@@ -326,6 +327,7 @@ extension GossipShell {
             return  // nothing to do, peers will be introduced manually
 
         case .onClusterMember(let atLeastStatus, let resolvePeerOn):
+            nonisolated(unsafe) let resolvePeerOn = resolvePeerOn
             @Sendable func resolveInsertPeer(_ context: _ActorContext<Message>, member: Cluster.Member) {
                 guard member.node != context.system.cluster.node else {
                     return  // ignore self node

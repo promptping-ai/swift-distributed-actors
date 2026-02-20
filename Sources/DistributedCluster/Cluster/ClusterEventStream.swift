@@ -39,8 +39,9 @@ public struct ClusterEventStream: AsyncSequence {
 
     nonisolated func subscribe(_ ref: _ActorRef<Cluster.Event>, file: String = #filePath, line: UInt = #line) {
         nonisolated(unsafe) let ref = ref
+        nonisolated(unsafe) let selfUnsafe = self
         Task {
-            await self._subscribe(ref, file: file, line: line)
+            await selfUnsafe._subscribe(ref, file: file, line: line)
         }
     }
 
@@ -54,8 +55,9 @@ public struct ClusterEventStream: AsyncSequence {
 
     nonisolated func unsubscribe(_ ref: _ActorRef<Cluster.Event>, file: String = #filePath, line: UInt = #line) {
         nonisolated(unsafe) let ref = ref
+        nonisolated(unsafe) let selfUnsafe = self
         Task {
-            await self._unsubscribe(ref, file: file, line: line)
+            await selfUnsafe._unsubscribe(ref, file: file, line: line)
         }
     }
 
@@ -70,6 +72,7 @@ public struct ClusterEventStream: AsyncSequence {
     private func subscribe(_ oid: ObjectIdentifier, eventHandler: @escaping (Cluster.Event) -> Void) async {
         guard let actor = self.actor else { return }
 
+        nonisolated(unsafe) let eventHandler = eventHandler
         await actor.whenLocal { __secretlyKnownToBeLocal in  // TODO(distributed): this is annoying, we must track "known to be local" in typesystem instead
             __secretlyKnownToBeLocal.subscribe(oid, eventHandler: eventHandler)
         }
@@ -100,6 +103,7 @@ public struct ClusterEventStream: AsyncSequence {
 
         init(_ eventStream: ClusterEventStream) {
             let id = ObjectIdentifier(self)
+            nonisolated(unsafe) let eventStream = eventStream
             self.underlying = AsyncStream<Cluster.Event> { continuation in
                 Task {
                     await eventStream.subscribe(id) { event in

@@ -62,13 +62,13 @@ extension _Behavior {
         // nonisolated(unsafe): Message may not conform to Sendable, and EventLoopPromise is not Sendable,
         // but both are consumed exactly once in the Task closure. Thread safety is guaranteed by the
         // actor mailbox serialization.
-        nonisolated(unsafe) let message = message
+        nonisolated(unsafe) let unsafeMessage = message
         nonisolated(unsafe) let unsafePromise = promise
 
         // TODO: pretty sub-optimal, but we'll flatten this all out eventually
-        Task {
+        Task { @Sendable in
             do {
-                let next = try await recv(message)
+                let next = try await recv(unsafeMessage)
                 unsafePromise.succeed(next)
             } catch {
                 unsafePromise.fail(error)
@@ -86,11 +86,12 @@ extension _Behavior {
         _ recv: @Sendable @escaping (_ActorContext<Message>, Message) async throws -> _Behavior<Message>,
         _ message: Message
     ) -> _Behavior<Message> {
-        .setup { context in
+        nonisolated(unsafe) let message = message
+        return .setup { context in
             nonisolated(unsafe) let context = context
             return receiveAsync0(
-                { message in
-                    try await recv(context, message)
+                { msg in
+                    try await recv(context, msg)
                 },
                 context: context,
                 message: message
@@ -103,7 +104,8 @@ extension _Behavior {
         _ recv: @Sendable @escaping (Message) async throws -> _Behavior<Message>,
         _ message: Message
     ) -> _Behavior<Message> {
-        .setup { context in
+        nonisolated(unsafe) let message = message
+        return .setup { context in
             receiveAsync0(recv, context: context, message: message)
         }
     }
@@ -117,13 +119,16 @@ extension _Behavior {
             let loop = context.system._eventLoopGroup.next()
             let promise = loop.makePromise(of: _Behavior<Message>.self)
 
+            nonisolated(unsafe) let unsafeContext = context
+            nonisolated(unsafe) let unsafePromise = promise
+
             // TODO: pretty sub-optimal, but we'll flatten this all out eventually
             Task {
                 do {
-                    let next = try await handleSignal(context, signal)
-                    promise.succeed(next)
+                    let next = try await handleSignal(unsafeContext, signal)
+                    unsafePromise.succeed(next)
                 } catch {
-                    promise.fail(error)
+                    unsafePromise.fail(error)
                 }
             }
 

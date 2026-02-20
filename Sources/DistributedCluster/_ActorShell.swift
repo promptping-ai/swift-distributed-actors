@@ -512,6 +512,7 @@ public final class _ActorShell<Message: Codable>: _ActorContext<Message>, Abstra
     internal func interpretResume(_ result: Result<Any, Error>) throws -> ActorRunResult {
         switch self.behavior.underlying {
         case .suspended(let previousBehavior, let handler):
+            nonisolated(unsafe) let result = result
             let next = try self.supervisor.interpretSupervised(target: previousBehavior, context: self) {
                 try handler(result)
             }

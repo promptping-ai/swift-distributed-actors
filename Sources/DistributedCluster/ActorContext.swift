@@ -241,7 +241,13 @@ public class _ActorContext<Message: Codable> {  // TODO(sendable): NOTSendable
         _AsyncResult.withTimeout(after: timeout)._onComplete { [weak selfRef = self.myself._unsafeUnwrapCell] result in
             selfRef?.sendSystemMessage(.resume(result.map { $0 }))
         }
-        return .suspend(handler: continuation)
+        // The continuation runs synchronously in the actor mailbox context, so it is safe
+        // to bridge across the @Sendable boundary.
+        nonisolated(unsafe) let unsafeContinuation = continuation
+        let sendableHandler: @Sendable (Result<AR.Value, Error>) throws -> _Behavior<Message> = { result in
+            try unsafeContinuation(result)
+        }
+        return .suspend(handler: sendableHandler)
     }
 
     /// ***CAUTION***: This functionality should be used with extreme caution, as it will

@@ -100,9 +100,10 @@ extension ClusterShell {
 
         system.cluster.updateMembershipSnapshot(state.membership)
 
-        Task { [eventsToPublish, state] in
+        nonisolated(unsafe) let events = state.events
+        Task {
             for event in eventsToPublish {
-                await state.events.publish(event)
+                await events.publish(event)
             }
         }
 

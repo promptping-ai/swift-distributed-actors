@@ -44,11 +44,16 @@ internal distributed actor SWIMActor: SWIMPeer, SWIMAddressablePeer, CustomStrin
         )
     }
 
-    private lazy var log: Logger = {
-        var log = Logger(actor: self)
-        log.logLevel = self.settings.logger.logLevel
-        return log
-    }()
+    private var _log: Logger?
+    private var log: Logger {
+        get {
+            if let existing = _log { return existing }
+            var newLog = Logger(actor: self)
+            newLog.logLevel = self.settings.logger.logLevel
+            _log = newLog
+            return newLog
+        }
+    }
 
     var metrics: SWIM.Metrics {
         self.swim.metrics
@@ -191,27 +196,31 @@ internal distributed actor SWIMActor: SWIMPeer, SWIMAddressablePeer, CustomStrin
         nonisolated(unsafe) let log = self.log
         nonisolated(unsafe) let metrics = self.metrics
         nonisolated(unsafe) let swim = self.swim!
+        nonisolated(unsafe) let directive = directive
+        nonisolated(unsafe) let peerToPingUnsafe = peerToPing
+        nonisolated(unsafe) let pingTimeoutUnsafe = pingTimeout
         let firstSuccessful = await withTaskGroup(
             of: SWIM.PingResponse<SWIMActor, SWIMActor>.self,
             returning: SWIM.PingResponse<SWIMActor, SWIMActor>?.self
         ) { group in
             for pingRequest in directive.requestDetails {
+                nonisolated(unsafe) let pingRequest = pingRequest
                 group.addTask {
                     let peerToPingRequestThrough = pingRequest.peerToPingRequestThrough
                     let payload = pingRequest.payload
                     let sequenceNumber = pingRequest.sequenceNumber
 
-                    log.trace("Sending ping request for [\(peerToPing)] to [\(peerToPingRequestThrough)] with payload: \(payload)")
+                    log.trace("Sending ping request for [\(peerToPingUnsafe)] to [\(peerToPingRequestThrough)] with payload: \(payload)")
 
                     let pingRequestSentAt: DispatchTime = .now()
                     metrics.shell.messageOutboundCount.increment()
 
                     do {
                         let response = try await peerToPingRequestThrough.pingRequest(
-                            target: peerToPing,
+                            target: peerToPingUnsafe,
                             payload: payload,
                             from: self,
-                            timeout: pingTimeout,
+                            timeout: pingTimeoutUnsafe,
                             sequenceNumber: sequenceNumber
                         )
                         metrics.shell.pingRequestResponseTimeAll.recordInterval(since: pingRequestSentAt)
@@ -220,7 +229,7 @@ internal distributed actor SWIMActor: SWIMPeer, SWIMAddressablePeer, CustomStrin
                         log.debug(
                             ".pingRequest resulted in error",
                             metadata: swim.metadata([
-                                "swim/pingRequest/target": "\(peerToPing)",
+                                "swim/pingRequest/target": "\(peerToPingUnsafe)",
                                 "swim/pingRequest/peerToPingRequestThrough": "\(peerToPingRequestThrough)",
                                 "swim/pingRequest/sequenceNumber": "\(sequenceNumber)",
                                 "error": "\(error)",
@@ -231,17 +240,17 @@ internal distributed actor SWIMActor: SWIMPeer, SWIMAddressablePeer, CustomStrin
                         log.trace(
                             "Failed pingRequest",
                             metadata: [
-                                "swim/target": "\(peerToPing)",
+                                "swim/target": "\(peerToPingUnsafe)",
                                 "swim/payload": "\(payload)",
-                                "swim/pingTimeout": "\(pingTimeout)",
+                                "swim/pingTimeout": "\(pingTimeoutUnsafe)",
                                 "error": "\(error)",
                             ]
                         )
 
                         let response = SWIM.PingResponse<SWIMActor, SWIMActor>.timeout(
-                            target: peerToPing,
+                            target: peerToPingUnsafe,
                             pingRequestOrigin: self,
-                            timeout: pingTimeout,
+                            timeout: pingTimeoutUnsafe,
                             sequenceNumber: sequenceNumber
                         )
                         return response

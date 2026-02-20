@@ -122,10 +122,11 @@ func _withClusterCancellableCheckedContinuation<Success>(
     function: String = #function
 ) async throws -> Success where Success: Sendable {
     let cccc = ClusterCancellableCheckedContinuation<Success>()
+    nonisolated(unsafe) let unsafeBody = body
     return try await withTaskCancellationHandler {
         try await withCheckedThrowingContinuation(function: function) { continuation in
             if cccc.setContinuation(continuation) {
-                body(cccc)
+                unsafeBody(cccc)
             }
         }
     } onCancel: {

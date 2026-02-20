@@ -1328,14 +1328,18 @@ extension ClusterSystem {
         let callID = UUID()
 
         let timeout = RemoteCall.timeout ?? self.settings.remoteCall.defaultTimeout
-        let timeoutTask: Task<Void, Error> = Task.detached {
-            try await Task.sleep(nanoseconds: UInt64(timeout.nanoseconds))
+        nonisolated(unsafe) let unsafeTarget = target
+        nonisolated(unsafe) let unsafeTimeout = timeout
+        nonisolated(unsafe) let unsafeCallID = callID
+        nonisolated(unsafe) let unsafeActorID = actorID
+        let timeoutOperation: @Sendable () async throws -> Void = {
+            try await Task.sleep(nanoseconds: UInt64(unsafeTimeout.nanoseconds))
             guard !Task.isCancelled else {
                 return
             }
 
             self.inFlightCallLock.withLockVoid {
-                guard let continuation = self._inFlightCalls.removeValue(forKey: callID) else {
+                guard let continuation = self._inFlightCalls.removeValue(forKey: unsafeCallID) else {
                     // remoteCall was already completed successfully, nothing to do here
                     return
                 }
@@ -1350,21 +1354,22 @@ extension ClusterSystem {
                     //
                     // If we're shutting down, it is okay to not get acknowledgements to calls for example,
                     // and we don't care about them missing -- we're shutting down anyway.
-                    error = RemoteCallError(.clusterAlreadyShutDown, on: actorID, target: target)
+                    error = RemoteCallError(.clusterAlreadyShutDown, on: unsafeActorID, target: unsafeTarget)
                 } else {
                     error = RemoteCallError(
                         .timedOut(
-                            callID,
-                            TimeoutError(message: "Remote call [\(callID)] to [\(target)](\(actorID)) timed out", timeout: timeout)
+                            unsafeCallID,
+                            TimeoutError(message: "Remote call [\(unsafeCallID)] to [\(unsafeTarget)](\(unsafeActorID)) timed out", timeout: unsafeTimeout)
                         ),
-                        on: actorID,
-                        target: target
+                        on: unsafeActorID,
+                        target: unsafeTarget
                     )
                 }
 
                 continuation.resume(throwing: error)
             }
         }
+        let timeoutTask: Task<Void, Error> = Task.detached(operation: timeoutOperation)
         defer {
             timeoutTask.cancel()
         }
@@ -1427,25 +1432,30 @@ extension ClusterSystem {
             ]
         )
 
-        let anyReturn = try await withCheckedThrowingContinuation { cc in
-            Task { [invocation] in  // FIXME: make an async stream here since we lost ordering guarantees here
-                var directDecoder = ClusterInvocationDecoder(system: self, invocation: invocation)
-                let directReturnHandler = ClusterInvocationResultHandler(directReturnContinuation: cc)
+        nonisolated(unsafe) let unsafeInvocation = invocation
+        nonisolated(unsafe) let unsafeTarget = target
+        nonisolated(unsafe) let unsafeActor = actor
+        let anyReturn: Any = try await withCheckedThrowingContinuation { (cc: CheckedContinuation<Any, Error>) in
+            nonisolated(unsafe) let unsafeCC = cc
+            let taskOperation: @Sendable () async throws -> Void = {
+                var directDecoder = ClusterInvocationDecoder(system: self, invocation: unsafeInvocation)
+                let directReturnHandler = ClusterInvocationResultHandler(directReturnContinuation: unsafeCC)
 
-                try await executeDistributedTarget(
-                    on: actor,
-                    target: target,
+                try await self.executeDistributedTarget(
+                    on: unsafeActor,
+                    target: unsafeTarget,
                     invocationDecoder: &directDecoder,
                     handler: directReturnHandler
                 )
             }
+            Task(operation: taskOperation)
         }
 
         guard let wellTypedReturn = anyReturn as? Res else {
             throw RemoteCallError(
                 .illegalReplyType(UUID(), expected: Res.self, got: type(of: anyReturn)),
                 on: actor.id,
-                target: target
+                target: unsafeTarget
             )
         }
 
@@ -1477,18 +1487,23 @@ extension ClusterSystem {
             ]
         )
 
+        nonisolated(unsafe) let unsafeInvocation = invocation
+        nonisolated(unsafe) let unsafeTarget = target
+        nonisolated(unsafe) let unsafeActor = actor
         _ = try await withCheckedThrowingContinuation { (cc: CheckedContinuation<Any, Error>) in
-            Task { [invocation] in
-                var directDecoder = ClusterInvocationDecoder(system: self, invocation: invocation)
-                let directReturnHandler = ClusterInvocationResultHandler(directReturnContinuation: cc)
+            nonisolated(unsafe) let unsafeCC = cc
+            let taskOperation: @Sendable () async throws -> Void = {
+                var directDecoder = ClusterInvocationDecoder(system: self, invocation: unsafeInvocation)
+                let directReturnHandler = ClusterInvocationResultHandler(directReturnContinuation: unsafeCC)
 
-                try await executeDistributedTarget(
-                    on: actor,
-                    target: target,
+                try await self.executeDistributedTarget(
+                    on: unsafeActor,
+                    target: unsafeTarget,
                     invocationDecoder: &directDecoder,
                     handler: directReturnHandler
                 )
             }
+            Task(operation: taskOperation)
         }
     }
 }
@@ -1551,7 +1566,8 @@ extension ClusterSystem {
                 self.log.warning("Missing continuation for remote call \(reply.callID). Reply will be dropped: \(reply)")  // this could be because remote call has timed out
                 return
             }
-            continuation.resume(returning: reply)
+            nonisolated(unsafe) let unsafeReply = reply
+            continuation.resume(returning: unsafeReply)
         }
     }
 
@@ -1654,7 +1670,8 @@ public struct ClusterInvocationResultHandler: DistributedTargetInvocationResultH
     public func onReturn<Success: Codable>(value: Success) async throws {
         switch self.state {
         case .localDirectReturn(let directReturnContinuation):
-            directReturnContinuation.resume(returning: value)
+            nonisolated(unsafe) let unsafeValue = value
+            directReturnContinuation.resume(returning: unsafeValue)
 
         case .remoteCall(let system, let callID, let channel, let recipient):
             system.log.trace(

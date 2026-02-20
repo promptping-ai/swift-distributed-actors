@@ -209,8 +209,9 @@ extension AskResponse: _AsyncResult {
     var _unsafeAsyncValue: Value {
         get async throws {
             try await withCheckedThrowingContinuation { cc in
-                _onComplete {
-                    cc.resume(with: $0)
+                _onComplete { result in
+                    nonisolated(unsafe) let unsafeResult = result
+                    cc.resume(with: unsafeResult)
                 }
             }
         }
@@ -284,8 +285,9 @@ internal enum AskActor {
                 }
             }
 
+            let capturedTimeout = scheduledTimeout
             return .receiveMessage { message in
-                scheduledTimeout?.cancel()
+                capturedTimeout?.cancel()
                 completable.succeed(message)
 
                 return .stop
