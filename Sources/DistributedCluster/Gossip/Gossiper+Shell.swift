@@ -17,7 +17,9 @@ import Logging
 private let gossipTickKey: _TimerKey = "gossip-tick"
 
 /// Not intended to be spawned directly, use `Gossiper.spawn` instead!
-internal final class GossipShell<Gossip: Codable, Acknowledgement: Codable> {
+// @unchecked Sendable: Mutable state is only accessed from within the actor's mailbox run.
+// Phase 3: verify single-threaded access pattern before removing @unchecked.
+internal final class GossipShell<Gossip: Codable, Acknowledgement: Codable>: @unchecked Sendable {
     typealias Ref = _ActorRef<Message>
 
     let settings: Gossiper.Settings

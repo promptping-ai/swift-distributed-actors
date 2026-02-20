@@ -464,7 +464,9 @@ extension _Behavior {
     }
 }
 
-internal enum __Behavior<Message: Codable> {
+// @unchecked Sendable: Contains non-@Sendable closures for message/signal handling.
+// Phase 3: behavior closures need @Sendable annotation before this can be checked Sendable.
+internal enum __Behavior<Message: Codable>: @unchecked Sendable {
     case setup(_ onStart: (_ActorContext<Message>) throws -> _Behavior<Message>)
 
     case receive(_ handle: (_ActorContext<Message>, Message) throws -> _Behavior<Message>)
@@ -496,7 +498,9 @@ internal enum __Behavior<Message: Codable> {
     indirect case suspended(previousBehavior: _Behavior<Message>, handler: (Result<Any, Error>) throws -> _Behavior<Message>)
 }
 
-internal enum StopReason {
+// @unchecked Sendable: Contains _Supervision.Failure which wraps Error (not Sendable).
+// Phase 3: constrain Error types to Sendable or use typed throws.
+internal enum StopReason: @unchecked Sendable {
     /// the actor decided to stop and returned _Behavior.stop
     case stopMyself
     /// a stop was requested by the parent, i.e. `context.stop(child:)`
@@ -505,7 +509,9 @@ internal enum StopReason {
     case failure(_Supervision.Failure)
 }
 
-enum IllegalBehaviorError<Message: Codable>: Error {
+// @unchecked Sendable: Contains _Behavior which is @unchecked Sendable.
+// Phase 3: will become checked Sendable once _Behavior is fully Sendable.
+enum IllegalBehaviorError<Message: Codable>: Error, @unchecked Sendable {
     /// Some behaviors, like `.same` and `.unhandled` are not allowed to be used as initial behaviors.
     /// See their individual documentation for the rationale why that is so.
     case notAllowedAsInitial(_ behavior: _Behavior<Message>)
@@ -539,7 +545,9 @@ extension _Behavior {
 }
 
 /// Used in combination with `_Behavior.intercept` to intercept messages and signals delivered to a behavior.
-open class _Interceptor<Message: Codable> {
+// @unchecked Sendable: Open class used for subclassing (e.g. supervision interceptors).
+// Phase 3: audit subclasses for thread safety before removing @unchecked.
+open class _Interceptor<Message: Codable>: @unchecked Sendable {
     public init() {}
 
     @inlinable

@@ -21,7 +21,9 @@ import NIO
 ///
 /// Membership gossip is what is used to reach cluster "convergence" upon which a leader may perform leader actions.
 /// See `Cluster.MembershipGossip.converged` for more details.
-final class MembershipGossipLogic: GossipLogic, CustomStringConvertible {
+// @unchecked Sendable: Mutable state is only accessed from within the owning GossipShell actor's mailbox.
+// Phase 3: verify single-threaded access pattern before removing @unchecked.
+final class MembershipGossipLogic: GossipLogic, CustomStringConvertible, @unchecked Sendable {
     typealias Gossip = Cluster.MembershipGossip
     typealias Acknowledgement = Cluster.MembershipGossip
 
@@ -137,7 +139,7 @@ final class MembershipGossipLogic: GossipLogic, CustomStringConvertible {
         }
     }
 
-    struct PeersChanged {
+    struct PeersChanged: Sendable {
         let added: Set<_AddressableActorRef>
         let removed: Set<_AddressableActorRef>
 

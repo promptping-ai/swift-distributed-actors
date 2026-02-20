@@ -162,7 +162,7 @@ extension DistributedReception {
 /// This allows a local subscriber to definitely compare a registration with its "already seen"
 /// version vector (that contains versions for every node it is receiving updates from),
 /// and only emit those to the user-facing stream which have not been observed yet.
-internal struct VersionedRegistration: Hashable {
+internal struct VersionedRegistration: Hashable, Sendable {
     let version: VersionVector
     let actorID: ClusterSystem.ActorID
 
@@ -188,7 +188,9 @@ internal struct VersionedRegistration: Hashable {
     }
 }
 
-internal final class DistributedReceptionistStorage {
+// @unchecked Sendable: Storage is only accessed from within the owning distributed actor (OpLogDistributedReceptionist).
+// Phase 3: verify actor isolation before removing @unchecked.
+internal final class DistributedReceptionistStorage: @unchecked Sendable {
     typealias ReceptionistOp = OpLogDistributedReceptionist.ReceptionistOp
 
     internal var _registrations: [AnyDistributedReceptionKey: OrderedSet<VersionedRegistration>] = [:]

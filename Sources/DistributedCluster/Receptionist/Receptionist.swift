@@ -132,7 +132,9 @@ public struct Receptionist {
     }
 
     /// Storage container for a receptionist's registrations and subscriptions
-    internal final class Storage {
+    // @unchecked Sendable: Storage is only accessed from within the owning actor's mailbox run.
+    // Phase 3: verify single-threaded access pattern before removing @unchecked.
+    internal final class Storage: @unchecked Sendable {
         internal var _registrations: [AnyReceptionKey: Set<_AddressableActorRef>] = [:]
         internal var _subscriptions: [AnyReceptionKey: Set<AnySubscribe>] = [:]
 
@@ -512,7 +514,9 @@ public class _Subscribe: _ReceptionistMessage, _NotActuallyCodableMessage {
     }
 }
 
-internal struct AnySubscribe: Hashable {
+// @unchecked Sendable: Contains a non-@Sendable closure (_replyWith). The closure captures _ActorRef.tell
+// which is thread-safe. Phase 3: make _replyWith @Sendable.
+internal struct AnySubscribe: Hashable, @unchecked Sendable {
     let id: ActorID
     let _replyWith: (Set<_AddressableActorRef>) -> Void
 

@@ -102,7 +102,9 @@ extension GossipLogic {
     }
 }
 
-struct GossipLogicContext<Envelope: Codable, Acknowledgement: Codable> {
+// @unchecked Sendable: Contains _ActorContext which is not Sendable. Context is only used
+// within the owning actor's mailbox. Phase 3: verify actor isolation.
+struct GossipLogicContext<Envelope: Codable, Acknowledgement: Codable>: @unchecked Sendable {
     /// Identifier associated with this gossip logic.
     ///
     /// Many gossipers only use a single identifier (and logic),
@@ -138,7 +140,9 @@ struct GossipLogicContext<Envelope: Codable, Acknowledgement: Codable> {
     }
 }
 
-struct AnyGossipLogic<Gossip: Codable, Acknowledgement: Codable>: GossipLogic, CustomStringConvertible {
+// @unchecked Sendable: Type-erased wrapper containing closures that capture mutable GossipLogic state.
+// Only accessed from within the owning GossipShell actor. Phase 3: verify actor isolation.
+struct AnyGossipLogic<Gossip: Codable, Acknowledgement: Codable>: GossipLogic, CustomStringConvertible, @unchecked Sendable {
     @usableFromInline
     let _selectPeers: ([_AddressableActorRef]) -> [_AddressableActorRef]
     @usableFromInline
