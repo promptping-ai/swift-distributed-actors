@@ -35,6 +35,8 @@ internal protocol ReadOnlyClusterState {
 }
 
 /// State of the `ClusterShell` state machine.
+/// Not Sendable: this struct is only accessed within the ClusterShell's serialized actor mailbox.
+/// Contains non-Sendable types (Channel, EventLoopGroup, GossiperControl).
 internal struct ClusterShellState: ReadOnlyClusterState {
     typealias Messages = ClusterShell.Message
 
@@ -481,7 +483,7 @@ extension ClusterShellState {
         return .init(applied: changeWasApplied)
     }
 
-    struct AppliedClusterEventDirective {
+    struct AppliedClusterEventDirective: Sendable {
         // True if the change was applied, modifying the Membership.
         let applied: Bool
     }
