@@ -36,8 +36,12 @@ import SwiftProtobuf
 /// for any kind of Message type that is possible to be received by any spawned `Actor`, sub-receive, `Gossip` instance etc.
 ///
 // Serialization is @unchecked Sendable because:
-// - _serializers (mutable) is protected by _serializersLock for all reads/writes.
+// - _serializers (mutable dictionary) is protected by _serializersLock for all reads/writes.
+//   Exception: error-path reads in serialize/deserialize access _serializers without the lock
+//   for diagnostic hint construction only (known limitation — TODO: lock those reads too).
+// - _serializersLock itself (ReadWriteLock) has no Sendable conformance, requiring @unchecked.
 // - settings (Serialization.Settings struct) is immutable after init and requires no locking.
+// Both (1) and (2) must be resolved before this conformance can be made checked.
 public final class Serialization: @unchecked Sendable {
     private let log: Logger
     internal let settings: Serialization.Settings

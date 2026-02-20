@@ -28,7 +28,9 @@ import NIO
 /// (e.g. system) messages.
 ///
 // TODO: This should be internal, but is forced to be public by `_deserializeDeliver` on references.
-// Phase 2: AffinityThreadPool dependency will need actor isolation migration when moving to Swift 6 language mode.
+// Phase 2: AffinityThreadPool is not Sendable. It needs either @unchecked Sendable conformance
+// (it is internally thread-safe via a work queue) or replacement with Swift structured concurrency
+// before _SerializationPool can use Swift 6 strict concurrency checking.
 // _SerializationPool is @unchecked Sendable: workerMapping is set only during init and never mutated after;
 // AffinityThreadPool is internally thread-safe.
 public final class _SerializationPool: @unchecked Sendable {
