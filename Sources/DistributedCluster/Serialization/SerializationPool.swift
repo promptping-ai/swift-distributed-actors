@@ -28,6 +28,7 @@ import NIO
 /// (e.g. system) messages.
 ///
 // TODO: This should be internal, but is forced to be public by `_deserializeDeliver` on references.
+// Phase 2: AffinityThreadPool dependency will need actor isolation migration when moving to Swift 6 language mode.
 public final class _SerializationPool {
     @usableFromInline
     internal let serialization: Serialization
@@ -124,7 +125,7 @@ public final class _SerializationPool {
         recipientPath: ActorPath,
         promise: EventLoopPromise<Message>,
         workerPool: AffinityThreadPool,
-        task: @escaping () throws -> Message
+        task: @escaping @Sendable () throws -> Message
     ) {
         self.enqueue(recipientPath: recipientPath, onComplete: promise.completeWith, workerPool: workerPool, task: { try task() })
     }
@@ -133,9 +134,9 @@ public final class _SerializationPool {
     @usableFromInline
     internal func enqueue<Message>(
         recipientPath: ActorPath,
-        onComplete: @escaping (Result<Message, Error>) -> Void,
+        onComplete: @escaping @Sendable (Result<Message, Error>) -> Void,
         workerPool: AffinityThreadPool,
-        task: @escaping () throws -> Message
+        task: @escaping @Sendable () throws -> Message
     ) {
         // TODO: also record thr delay between submitting and starting serialization work here?
         do {

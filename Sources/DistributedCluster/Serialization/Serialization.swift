@@ -35,7 +35,9 @@ import SwiftProtobuf
 /// The serialization infrastructure automatically registers and maintains well-typed serializer instances
 /// for any kind of Message type that is possible to be received by any spawned `Actor`, sub-receive, `Gossip` instance etc.
 ///
-public class Serialization {
+// Serialization is @unchecked Sendable because all mutable state (_serializers) is protected
+// by _serializersLock using a ReadWriteLock discipline. The lock must be held for all reads/writes.
+public final class Serialization: @unchecked Sendable {
     private let log: Logger
     internal let settings: Serialization.Settings
     internal let metadataSettings: ActorIDMetadataSettings
@@ -64,7 +66,7 @@ public class Serialization {
     /// - Concurrency: Access MUST be protected by `_serializersLock`
     private var _serializers: [ObjectIdentifier: AnySerializer] = [:]
 
-    /// Used to protect `_serializers`.
+    // _serializersLock protects _serializers — must be held for all reads/writes
     private var _serializersLock = ReadWriteLock()
 
     internal let context: Serialization.Context
