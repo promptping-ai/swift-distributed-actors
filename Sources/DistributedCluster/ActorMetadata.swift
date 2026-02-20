@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Dispatch
 import Distributed
+import DistributedActorsConcurrencyHelpers
 
 // ==== ----------------------------------------------------------------------------------------------------------------
 // MARK: ActorMetadata
@@ -81,9 +81,12 @@ extension ActorMetadataKeys {
 }
 
 /// Container of tags a concrete actor identity was tagged with.
+///
+/// - Concurrency: `@unchecked Sendable` because `_storage` is mutable but all access
+///   is serialized through `lock` (a pthread-based `Lock` from DistributedActorsConcurrencyHelpers).
 @dynamicMemberLookup
-public final class ActorMetadata: CustomStringConvertible, CustomDebugStringConvertible {
-    internal let lock = DispatchSemaphore(value: 1)
+public final class ActorMetadata: @unchecked Sendable, CustomStringConvertible, CustomDebugStringConvertible {
+    internal let lock = Lock()
 
     // We still might re-think how we represent the storage.
     private var _storage: [String: Sendable & Codable] = [:]
@@ -93,22 +96,22 @@ public final class ActorMetadata: CustomStringConvertible, CustomDebugStringConv
     }
 
     public var count: Int {
-        self.lock.wait()
-        defer { lock.signal() }
+        self.lock.lock()
+        defer { lock.unlock() }
 
         return self._storage.count
     }
 
     public var isEmpty: Bool {
-        self.lock.wait()
-        defer { lock.signal() }
+        self.lock.lock()
+        defer { lock.unlock() }
 
         return self._storage.isEmpty
     }
 
     public func remove<Value: Sendable & Codable>(forKey key: ActorMetadataKeys.Key<Value>) -> Value? {
-        self.lock.wait()
-        defer { lock.signal() }
+        self.lock.lock()
+        defer { lock.unlock() }
 
         guard let v = self._storage.removeValue(forKey: key.id) else {
             return nil
@@ -117,8 +120,8 @@ public final class ActorMetadata: CustomStringConvertible, CustomDebugStringConv
     }
 
     func copy() -> ActorMetadata {
-        self.lock.wait()
-        defer { lock.signal() }
+        self.lock.lock()
+        defer { lock.unlock() }
 
         let c = ActorMetadata()
         for (k, v) in self._storage {
@@ -128,15 +131,15 @@ public final class ActorMetadata: CustomStringConvertible, CustomDebugStringConv
     }
 
     func clear() {
-        self.lock.wait()
-        defer { lock.signal() }
+        self.lock.lock()
+        defer { lock.unlock() }
         self._storage = [:]
     }
 
     public subscript<Value>(dynamicMember dynamicMember: KeyPath<ActorMetadataKeys, ActorMetadataKeys.Key<Value>>) -> Value? {
         get {
-            self.lock.wait()
-            defer { lock.signal() }
+            self.lock.lock()
+            defer { lock.unlock() }
 
             let key = ActorMetadataKeys.__instance[keyPath: dynamicMember]
             let id = key.id
@@ -146,8 +149,8 @@ public final class ActorMetadata: CustomStringConvertible, CustomDebugStringConv
             return v as? Value
         }
         set {
-            self.lock.wait()
-            defer { lock.signal() }
+            self.lock.lock()
+            defer { lock.unlock() }
 
             let key = ActorMetadataKeys.__instance[keyPath: dynamicMember]
             let id = key.id
@@ -160,8 +163,8 @@ public final class ActorMetadata: CustomStringConvertible, CustomDebugStringConv
 
     subscript(_ id: String) -> (any Sendable & Codable)? {
         get {
-            self.lock.wait()
-            defer { lock.signal() }
+            self.lock.lock()
+            defer { lock.unlock() }
 
             if let value = self._storage[id] {
                 return value
@@ -170,8 +173,8 @@ public final class ActorMetadata: CustomStringConvertible, CustomDebugStringConv
             }
         }
         set {
-            self.lock.wait()
-            defer { lock.signal() }
+            self.lock.lock()
+            defer { lock.unlock() }
             if let existing = self._storage[id] {
                 fatalError("Existing ActorID [\(id)] metadata, cannot be replaced. Was: [\(existing)], newValue: [\(optional: newValue)]")
             }
@@ -180,16 +183,16 @@ public final class ActorMetadata: CustomStringConvertible, CustomDebugStringConv
     }
 
     public var description: String {
-        self.lock.wait()
+        self.lock.lock()
         let copy = self._storage
-        self.lock.signal()
+        self.lock.unlock()
         return "\(copy)"
     }
 
     public var debugDescription: String {
-        self.lock.wait()
+        self.lock.lock()
         let copy = self._storage
-        self.lock.signal()
+        self.lock.unlock()
         return "\(Self.self)(\(copy))"
     }
 }
