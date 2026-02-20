@@ -26,7 +26,8 @@ extension Serialization {
     /// A context object provided to any `Swift/Encoder`/`Swift/Decoder` used during remoteCall message serialization
     ///
     /// `Serialization.Context` may be accessed concurrently be encoders/decoders.
-    public struct Context {
+    // Sendable: Logger, ClusterSystem (@unchecked Sendable), and ByteBufferAllocator are all Sendable.
+    public struct Context: Sendable {
         public let log: Logger
         public let system: ClusterSystem
 

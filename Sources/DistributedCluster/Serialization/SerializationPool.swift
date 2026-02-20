@@ -164,16 +164,19 @@ public final class _SerializationPool: @unchecked Sendable {
 }
 
 /// Allows to "box" another value.
+// @unchecked Sendable: call closure is immutable after init and is @Sendable.
 @usableFromInline
-final class DeserializationCallback {
+final class DeserializationCallback: @unchecked Sendable {
     /// A message deserialization may either be successful or fail due to attempting to deliver at an already dead actor,
     /// if this happens, we do not *statically* have the right `Message`  to cast to and the only remaining thing for such
     /// message is to be delivered as a dead letter thus we can avoid the cast entirely.
     ///
     /// Note: resolving a dead actor yields `_ActorRef<Never>` thus we would _never_ be able to deliver the message to it,
     /// and have to special case the dead letter delivery.
+    // @unchecked Sendable: associated Any values may not conform to Sendable,
+    // but deserialized messages are only passed through the serialization pool pipeline.
     @usableFromInline
-    enum DeserializedMessage {
+    enum DeserializedMessage: @unchecked Sendable {
         case message(Any)
         case deadLetter(Any)
     }
@@ -190,7 +193,7 @@ final class DeserializationCallback {
 // MARK: Serialization.Settings
 
 /// Configure specific actor destinations to be serviced by dedicated threads in the serialization pool.
-struct SerializationPoolSettings {
+struct SerializationPoolSettings: Sendable {
     // TODO: enable configuration again, but base it on tagging actor identities
     let serializationGroups: [[ActorPath]]
 

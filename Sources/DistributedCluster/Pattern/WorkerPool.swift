@@ -293,8 +293,9 @@ extension WorkerPool {
 // ==== ----------------------------------------------------------------------------------------------------------------
 // MARK: WorkerPool Errors
 
-public struct WorkerPoolError: Error, CustomStringConvertible {
-    internal enum _WorkerPoolError {
+// @unchecked Sendable: _Storage is a class but is immutable after init (all let bindings).
+public struct WorkerPoolError: Error, CustomStringConvertible, @unchecked Sendable {
+    internal enum _WorkerPoolError: Sendable {
         // --- runtime errors
         case staticPoolExhausted(String)
 
@@ -303,7 +304,8 @@ public struct WorkerPoolError: Error, CustomStringConvertible {
         case illegalAwaitNewWorkersForStaticPoolConfigured(String)
     }
 
-    internal class _Storage {
+    // @unchecked Sendable: all stored properties are immutable after init (let bindings).
+    internal class _Storage: @unchecked Sendable {
         let error: _WorkerPoolError
         let file: String
         let line: UInt

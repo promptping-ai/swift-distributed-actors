@@ -23,7 +23,10 @@ import SwiftProtobuf
 // MARK: Serialization Settings
 
 extension Serialization {
-    public struct Settings {
+    // @unchecked Sendable: manifest2TypeRegistry stores Any.Type values (not Sendable in Swift 6),
+    // and specializedSerializerMakers returns AnySerializer (protocol, not Sendable).
+    // Settings is only mutated during system init and then treated as immutable.
+    public struct Settings: @unchecked Sendable {
         // TODO: Workaround for https://bugs.swift.org/browse/SR-12315 rdar://31838975 "Extension of nested type does not have access to types it is nested in"
         public typealias SerializerID = Serialization.SerializerID
         internal typealias ReservedID = Serialization.ReservedID
