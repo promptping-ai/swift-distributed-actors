@@ -38,7 +38,7 @@ import Glibc
 /// of lock is safe to use with `libpthread`-based threading models, such as the
 /// one used by NIO.
 @available(*, noasync, message: "Locks are bad in async code; If you truly must, use DispatchSemaphore")
-public final class Lock {
+public final class Lock: @unchecked Sendable {
     fileprivate let mutex: UnsafeMutablePointer<pthread_mutex_t> = UnsafeMutablePointer.allocate(capacity: 1)
 
     /// Create a new lock.
@@ -107,7 +107,7 @@ extension Lock {
 ///
 /// This class provides a convenience addition to `Lock`: it provides the ability to wait
 /// until the state variable is set to a specific value to acquire the lock.
-public final class ConditionLock<T: Equatable> {
+public final class ConditionLock<T: Equatable>: @unchecked Sendable where T: Sendable {
     private var _value: T
     private let mutex: Lock
     private let cond: UnsafeMutablePointer<pthread_cond_t> = UnsafeMutablePointer.allocate(capacity: 1)
