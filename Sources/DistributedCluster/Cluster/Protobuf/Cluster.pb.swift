@@ -164,7 +164,7 @@ extension _ProtoClusterShellMessage: SwiftProtobuf.Message, SwiftProtobuf._Messa
     fileprivate class _StorageClass {
         var _message: _ProtoClusterShellMessage.OneOf_Message?
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -244,7 +244,7 @@ extension _ProtoClusterInbound: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
     fileprivate class _StorageClass {
         var _message: _ProtoClusterInbound.OneOf_Message?
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -314,7 +314,7 @@ extension _ProtoClusterRestInPeace: SwiftProtobuf.Message, SwiftProtobuf._Messag
         var _targetNode: _ProtoClusterNode? = nil
         var _fromNode: _ProtoClusterNode? = nil
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 

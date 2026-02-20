@@ -146,7 +146,7 @@ extension _ProtoActorID: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
         var _incarnation: UInt32 = 0
         var _metadata: [String: Data] = [:]
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -256,7 +256,7 @@ extension _ProtoClusterNode: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
         var _endpoint: _ProtoClusterEndpoint? = nil
         var _nid: UInt64 = 0
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 

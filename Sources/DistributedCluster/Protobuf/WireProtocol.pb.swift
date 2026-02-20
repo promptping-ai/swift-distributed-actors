@@ -353,7 +353,7 @@ extension _ProtoHandshakeOffer: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
         var _originNode: _ProtoClusterNode? = nil
         var _targetEndpoint: _ProtoClusterEndpoint? = nil
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -427,7 +427,7 @@ extension _ProtoHandshakeResponse: SwiftProtobuf.Message, SwiftProtobuf._Message
     fileprivate class _StorageClass {
         var _status: _ProtoHandshakeResponse.OneOf_Status?
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -511,7 +511,7 @@ extension _ProtoHandshakeAccept: SwiftProtobuf.Message, SwiftProtobuf._MessageIm
         var _originNode: _ProtoClusterNode? = nil
         var _targetNode: _ProtoClusterNode? = nil
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -590,7 +590,7 @@ extension _ProtoHandshakeReject: SwiftProtobuf.Message, SwiftProtobuf._MessageIm
         var _targetNode: _ProtoClusterNode? = nil
         var _reason: String = String()
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -673,7 +673,7 @@ extension _ProtoEnvelope: SwiftProtobuf.Message, SwiftProtobuf._MessageImplement
         var _manifest: _ProtoManifest? = nil
         var _payload: Data = SwiftProtobuf.Internal.emptyData
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -752,7 +752,7 @@ extension _ProtoSystemEnvelope: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
         var _manifest: _ProtoManifest? = nil
         var _payload: Data = SwiftProtobuf.Internal.emptyData
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -833,7 +833,7 @@ extension _ProtoSystemAck: SwiftProtobuf.Message, SwiftProtobuf._MessageImplemen
         var _sequenceNr: UInt64 = 0
         var _from: _ProtoClusterNode? = nil
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 

@@ -58,7 +58,7 @@ extension _ActorNaming {
 
 extension _ActorNaming {
     /// Special naming scheme applied to `ask` actors.
-    static var ask: _ActorNaming = .init(unchecked: .prefixed(prefix: "$ask", suffixScheme: .letters))
+    static let ask: _ActorNaming = .init(unchecked: .prefixed(prefix: "$ask", suffixScheme: .letters))
 
     /// Naming for adapters (`context.messageAdapter`)
     static let adapter: _ActorNaming = .init(unchecked: .unique("$messageAdapter"))

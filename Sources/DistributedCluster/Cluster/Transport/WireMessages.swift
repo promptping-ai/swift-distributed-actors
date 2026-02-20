@@ -27,7 +27,7 @@ internal enum Wire: Sendable {
     /// Envelope type carrying messages over the network.
     struct Envelope: Codable, Sendable {
         /// This is a very blessed type hint, as it encapsulates all messages and is _assumed_ on the receiving end as the outer wrapper.
-        static var typeHint: String = "_$Awe"  // Swift Actors wire envelope
+        static let typeHint: String = "_$Awe"  // Swift Actors wire envelope
 
         var recipient: ActorID
 

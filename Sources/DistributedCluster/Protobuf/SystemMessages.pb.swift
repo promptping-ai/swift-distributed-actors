@@ -246,7 +246,7 @@ extension _ProtoSystemMessage: SwiftProtobuf.Message, SwiftProtobuf._MessageImpl
     fileprivate class _StorageClass {
         var _payload: _ProtoSystemMessage.OneOf_Payload?
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -338,7 +338,7 @@ extension _ProtoSystemMessage_Watch: SwiftProtobuf.Message, SwiftProtobuf._Messa
         var _watchee: _ProtoActorID? = nil
         var _watcher: _ProtoActorID? = nil
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -407,7 +407,7 @@ extension _ProtoSystemMessage_Unwatch: SwiftProtobuf.Message, SwiftProtobuf._Mes
         var _watchee: _ProtoActorID? = nil
         var _watcher: _ProtoActorID? = nil
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -478,7 +478,7 @@ extension _ProtoSystemMessage_Terminated: SwiftProtobuf.Message, SwiftProtobuf._
         var _existenceConfirmed: Bool = false
         var _idTerminated: Bool = false
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -611,7 +611,7 @@ extension _ProtoSystemMessageEnvelope: SwiftProtobuf.Message, SwiftProtobuf._Mes
         var _sequenceNr: UInt64 = 0
         var _message: _ProtoSystemMessage? = nil
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 

@@ -169,7 +169,7 @@ extension _ProtoClusterEvent: SwiftProtobuf.Message, SwiftProtobuf._MessageImple
     fileprivate class _StorageClass {
         var _event: _ProtoClusterEvent.OneOf_Event?
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -263,7 +263,7 @@ extension _ProtoClusterMembershipChange: SwiftProtobuf.Message, SwiftProtobuf._M
         var _fromStatus: _ProtoClusterMemberStatus = .unspecified
         var _toStatus: _ProtoClusterMemberStatus = .unspecified
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -338,7 +338,7 @@ extension _ProtoClusterLeadershipChange: SwiftProtobuf.Message, SwiftProtobuf._M
         var _oldLeader: _ProtoClusterMember? = nil
         var _newLeader: _ProtoClusterMember? = nil
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 

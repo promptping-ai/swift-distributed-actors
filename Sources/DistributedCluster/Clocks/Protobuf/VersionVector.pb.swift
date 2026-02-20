@@ -232,7 +232,7 @@ extension _ProtoActorIdentity: SwiftProtobuf.Message, SwiftProtobuf._MessageImpl
         var _manifest: _ProtoManifest? = nil
         var _payload: Data = SwiftProtobuf.Internal.emptyData
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -301,7 +301,7 @@ extension _ProtoVersionReplicaID: SwiftProtobuf.Message, SwiftProtobuf._MessageI
     fileprivate class _StorageClass {
         var _value: _ProtoVersionReplicaID.OneOf_Value?
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -390,7 +390,7 @@ extension _ProtoReplicaVersion: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
         var _replicaID: _ProtoVersionReplicaID? = nil
         var _version: UInt64 = 0
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -488,7 +488,7 @@ extension _ProtoVersionDot: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
         var _replicaID: _ProtoVersionReplicaID? = nil
         var _version: UInt64 = 0
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -559,7 +559,7 @@ extension _ProtoVersionDottedElementEnvelope: SwiftProtobuf.Message, SwiftProtob
         var _manifest: _ProtoManifest? = nil
         var _payload: Data = SwiftProtobuf.Internal.emptyData
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
