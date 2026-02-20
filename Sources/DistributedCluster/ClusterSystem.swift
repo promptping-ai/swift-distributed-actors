@@ -29,6 +29,20 @@ import NIOPosix
 /// Rather, the system should be configured to host the kinds of dispatchers that the application needs.
 ///
 /// A `ClusterSystem` and all of the actors contained within remain alive until the `terminate` call is made.
+/// ## `@unchecked Sendable` Rationale
+///
+/// `ClusterSystem` is `@unchecked Sendable` because all mutable state is protected by explicit locks:
+///
+/// 1. **namingLock** (`Lock`) — Guards: `namingContext`, `_managedRefs`, `_managedDistributedActors`,
+///    `_reservedNames`, `_managedWellKnownDistributedActors`
+/// 2. **initLock** (`Lock`) — Guards lazy-init subsystem access: `_receptionistStore`, `_downingStrategyStore`,
+///    and double-check pattern for `_cluster`, `cluster`, `_nodeDeathWatcher`, `_receptionist`
+/// 3. **lazyInitializationLock** (`ReadWriteLock`) — Guards: `_serialization`
+/// 4. **inFlightCallLock** (`Lock`) — Guards: `_inFlightCalls`
+/// 5. **shutdownSemaphore** (`DispatchSemaphore`) — Guards shutdown sequencing
+///
+/// Remaining mutable fields (`_deadLetters`, `systemProvider`, `userProvider`, `_associationTombstoneCleanupTask`)
+/// are set once during `init` before the system is shared; see FIXME comments for Swift 6 verification.
 public class ClusterSystem: DistributedActorSystem, @unchecked Sendable {
     public typealias InvocationDecoder = ClusterInvocationDecoder
     public typealias InvocationEncoder = ClusterInvocationEncoder
@@ -39,11 +53,13 @@ public class ClusterSystem: DistributedActorSystem, @unchecked Sendable {
     public let name: String
 
     // initialized during startup
+    // FIXME: Swift 6 — verify concurrent access safety; set once during init, never mutated after
     internal var _deadLetters: _ActorRef<DeadLetter>!
 
     /// Impl note: Atomic since we are being called from outside actors here (or MAY be), thus we need to synchronize access
     /// Must be protected with `namingLock`
     internal var namingContext = ActorNamingContext()
+    // Guards: namingContext, _managedRefs, _managedDistributedActors, _reservedNames, _managedWellKnownDistributedActors
     internal let namingLock = Lock()
 
     internal func withNamingContext<T>(_ block: (inout ActorNamingContext) throws -> T) rethrows -> T {
@@ -54,8 +70,10 @@ public class ClusterSystem: DistributedActorSystem, @unchecked Sendable {
 
     // This lock is used to keep actors from accessing things like `system.cluster` before the cluster actor finished initializing.
     // TODO: collapse it with the other initialization lock; the other one is not needed now I think?
+    // Guards: _receptionistStore, _downingStrategyStore, and lazy-init double-check for _cluster, cluster, _nodeDeathWatcher, _receptionist
     private let initLock = Lock()
 
+    // FIXME: Swift 6 — verify concurrent access safety; set once during init, cancelled in shutdown
     private var _associationTombstoneCleanupTask: RepeatedTask?
 
     private let dispatcher: InternalMessageDispatcher
@@ -70,6 +88,7 @@ public class ClusterSystem: DistributedActorSystem, @unchecked Sendable {
 
     // TODO: converge into one tree
     // Note: This differs from Akka, we do full separate trees here
+    // FIXME: Swift 6 — verify concurrent access safety; set once during init under lazyInitializationLock, never mutated after
     private var systemProvider: _ActorRefProvider!
     private var userProvider: _ActorRefProvider!
 
@@ -80,6 +99,7 @@ public class ClusterSystem: DistributedActorSystem, @unchecked Sendable {
     public let settings: ClusterSystemSettings
 
     // initialized during startup
+    // Guards: _serialization
     private let lazyInitializationLock: ReadWriteLock
 
     internal var _serialization: ManagedAtomicLazyReference<Serialization>
@@ -93,6 +113,7 @@ public class ClusterSystem: DistributedActorSystem, @unchecked Sendable {
         }
     }
 
+    // Guards: _inFlightCalls
     private let inFlightCallLock = Lock()
     private var _inFlightCalls: [CallID: CheckedContinuation<any AnyRemoteCallReply, Error>] = [:]
 
@@ -191,7 +212,7 @@ public class ClusterSystem: DistributedActorSystem, @unchecked Sendable {
 
     /// Greater than 0 shutdown has been initiated / is in progress.
     private let shutdownFlag: ManagedAtomic<Int> = .init(0)
-    internal var isShuttingDown: Bool {
+    nonisolated internal var isShuttingDown: Bool {
         self.shutdownFlag.load(ordering: .sequentiallyConsistent) > 0
     }
 
@@ -475,7 +496,7 @@ public class ClusterSystem: DistributedActorSystem, @unchecked Sendable {
     }
 
     /// Returns `true` if the system was already successfully terminated (i.e. awaiting ``terminated`` would resume immediately).
-    public var isTerminated: Bool {
+    nonisolated public var isTerminated: Bool {
         self.shutdownFlag.load(ordering: .relaxed) > 0
     }
 
