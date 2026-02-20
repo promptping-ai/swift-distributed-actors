@@ -29,7 +29,9 @@ import NIO
 ///
 // TODO: This should be internal, but is forced to be public by `_deserializeDeliver` on references.
 // Phase 2: AffinityThreadPool dependency will need actor isolation migration when moving to Swift 6 language mode.
-public final class _SerializationPool {
+// _SerializationPool is @unchecked Sendable: workerMapping is set only during init and never mutated after;
+// AffinityThreadPool is internally thread-safe.
+public final class _SerializationPool: @unchecked Sendable {
     @usableFromInline
     internal let serialization: Serialization
     @usableFromInline
@@ -175,9 +177,9 @@ final class DeserializationCallback {
     }
 
     @usableFromInline
-    let call: (Result<DeserializedMessage, Error>) -> Void
+    let call: @Sendable (Result<DeserializedMessage, Error>) -> Void
 
-    init(_ callback: @escaping (Result<DeserializedMessage, Error>) -> Void) {
+    init(_ callback: @escaping @Sendable (Result<DeserializedMessage, Error>) -> Void) {
         self.call = callback
     }
 }
