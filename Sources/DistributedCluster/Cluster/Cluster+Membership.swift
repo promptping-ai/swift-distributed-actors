@@ -694,7 +694,7 @@ extension MembershipDiff: CustomDebugStringConvertible {
 // MARK: Errors
 
 extension Cluster {
-    public struct MembershipError: Error, CustomStringConvertible {
+    public struct MembershipError: Error, CustomStringConvertible, @unchecked Sendable {
         internal enum _MembershipError: CustomPrettyStringConvertible {
             case nonMemberLeaderSelected(Cluster.Membership, wannabeLeader: Cluster.Member)
             case notFound(Cluster.Node, in: Cluster.Membership)

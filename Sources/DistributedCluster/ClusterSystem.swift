@@ -456,7 +456,7 @@ public class ClusterSystem: DistributedActorSystem, @unchecked Sendable {
     }
 
     /// Object that can be awaited on until the system has completed shutting down.
-    public struct Shutdown {
+    public struct Shutdown: @unchecked Sendable {
         private let receptacle: BlockingReceptacle<Error?>
 
         init(receptacle: BlockingReceptacle<Error?>) {
@@ -1797,7 +1797,7 @@ struct RemoteCallReply<Value: Codable>: AnyRemoteCallReply {
     }
 }
 
-public struct GenericRemoteCallError: Error, Codable {
+public struct GenericRemoteCallError: Error, Codable, Sendable {
     public let message: String
 
     init(message: String) {
@@ -1809,7 +1809,7 @@ public struct GenericRemoteCallError: Error, Codable {
     }
 }
 
-public struct ClusterSystemError: DistributedActorSystemError, CustomStringConvertible {
+public struct ClusterSystemError: DistributedActorSystemError, CustomStringConvertible, @unchecked Sendable {
     internal enum _ClusterSystemError {
         case duplicateActorPath(path: ActorPath, existing: ActorID)
         case shuttingDown(String)
@@ -1841,7 +1841,7 @@ public struct ClusterSystemError: DistributedActorSystemError, CustomStringConve
 /// Error thrown when unable to resolve an ``ActorID``.
 ///
 /// Refer to ``ClusterSystem/resolve(id:as:)`` or the distributed actors Swift Evolution proposal for details.
-public struct ResolveError: DistributedActorSystemError, CustomStringConvertible {
+public struct ResolveError: DistributedActorSystemError, CustomStringConvertible, @unchecked Sendable {
     internal enum _ResolveError {
         case illegalIdentity(ClusterSystem.ActorID)
     }
@@ -1887,7 +1887,7 @@ internal struct LazyStart<Message: Codable> {
     }
 }
 
-public struct RemoteCallError: DistributedActorSystemError, CustomStringConvertible {
+public struct RemoteCallError: DistributedActorSystemError, CustomStringConvertible, @unchecked Sendable {
     internal enum _RemoteCallError {
         case clusterAlreadyShutDown
         case timedOut(ClusterSystem.CallID, TimeoutError)

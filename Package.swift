@@ -47,7 +47,7 @@ var targets: [PackageDescription.Target] = [
             .product(name: "Backtrace", package: "swift-backtrace"),
             .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
         ],
-        swiftSettings: [.swiftLanguageMode(.v5)]
+        swiftSettings: [.swiftLanguageMode(.v6)]
     ),
 
     // ==== ------------------------------------------------------------------------------------------------------------

@@ -305,7 +305,7 @@ extension Logger.MetadataValue {
     }
 }
 
-struct CustomPrettyStringConvertibleMetadataValue: CustomStringConvertible {
+struct CustomPrettyStringConvertibleMetadataValue: CustomStringConvertible, @unchecked Sendable {
     let value: CustomPrettyStringConvertible
 
     init(_ value: CustomPrettyStringConvertible) {
@@ -330,7 +330,7 @@ extension Optional where Wrapped == Logger.MetadataValue {
 /// Delays rendering of metadata value (e.g. into a string)
 ///
 /// NOT thread-safe, so all access should be guarded some synchronization method, e.g. only access from an Actor.
-internal class LazyMetadataBox: CustomStringConvertible {
+internal class LazyMetadataBox: CustomStringConvertible, @unchecked Sendable {
     private var lazyValue: (() -> CustomStringConvertible)?
     private var _value: String?
 

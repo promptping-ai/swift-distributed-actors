@@ -15,7 +15,7 @@
 import Logging
 
 /// Properties configuring supervision for given actor.
-internal struct _SupervisionProps {
+internal struct _SupervisionProps: @unchecked Sendable {
     // internal var supervisionMappings: [ErrorTypeIdentifier: _SupervisionStrategy]
     // on purpose stored as list, to keep order in which the supervisors are added as we "scan" from first to last when we handle
     internal var supervisionMappings: [ErrorTypeBoundSupervisionStrategy]

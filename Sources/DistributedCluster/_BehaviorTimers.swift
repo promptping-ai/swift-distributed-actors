@@ -48,7 +48,7 @@ struct TimerEvent {
 ///     timers.cancelTimer(forKey: timerKey)
 ///
 // TODO: replace timers with AsyncTimerSequence from swift-async-algorithms
-internal struct _TimerKey: Hashable {
+internal struct _TimerKey: Hashable, @unchecked Sendable {
     private let identifier: AnyHashable
 
     @usableFromInline

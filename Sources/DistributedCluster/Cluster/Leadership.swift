@@ -324,8 +324,8 @@ extension Leadership {
 
 extension ClusterSystemSettings {
     /// Configure leadership election using which the cluster leader should be decided.
-    public struct LeadershipSelectionSettings {
-        private enum _LeadershipSelectionSettings {
+    public struct LeadershipSelectionSettings: Sendable {
+        private enum _LeadershipSelectionSettings: Sendable {
             case none
             case lowestReachable(minNumberOfMembers: Int)
         }

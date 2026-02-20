@@ -19,7 +19,7 @@ extension Cluster {
     /// Represents cluster events, most notably regarding membership and reachability of other members of the cluster.
     ///
     /// Inspect them directly, or `apply` to a `Membership` copy in order to be able to react to membership state of the cluster.
-    public enum Event: Codable, Equatable {
+    public enum Event: Codable, Equatable, Sendable {
         case snapshot(Membership)
         case membershipChange(MembershipChange)
         case reachabilityChange(ReachabilityChange)
@@ -167,7 +167,7 @@ extension Cluster.MembershipChange: CustomStringConvertible {
 
 extension Cluster {
     /// Emitted when the reachability of a member changes, as determined by a failure detector (e.g. `SWIM`).
-    public struct ReachabilityChange: Equatable {
+    public struct ReachabilityChange: Equatable, Sendable {
         public let member: Cluster.Member
 
         public init(member: Member) {
@@ -195,7 +195,7 @@ extension Cluster {
 
 extension Cluster {
     /// Emitted when a change in leader is decided.
-    public struct LeadershipChange: Hashable {
+    public struct LeadershipChange: Hashable, Sendable {
         // let role: Role if this leader was of a specific role, carry the info here? same for DC?
         public let oldLeader: Cluster.Member?
         public let newLeader: Cluster.Member?

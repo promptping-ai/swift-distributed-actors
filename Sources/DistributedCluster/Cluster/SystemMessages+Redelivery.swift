@@ -351,7 +351,7 @@ extension InboundSystemMessages.InboundSystemMessageArrivalDirective {
 // ==== ----------------------------------------------------------------------------------------------------------------
 // MARK: Settings
 
-public struct OutboundSystemMessageRedeliverySettings {
+public struct OutboundSystemMessageRedeliverySettings: Sendable {
     public static let `default`: OutboundSystemMessageRedeliverySettings = .init()
 
     /// When enabled, logs all outbound messages using the tracelog facility.
@@ -382,7 +382,7 @@ public struct OutboundSystemMessageRedeliverySettings {
     // var maxRedeliveryTicksWithoutACK = 10_000 // TODO settings
 }
 
-public struct InboundSystemMessageRedeliverySettings {
+public struct InboundSystemMessageRedeliverySettings: Sendable {
     public static let `default` = InboundSystemMessageRedeliverySettings()
 
     /// When enabled, logs all outbound messages using the tracelog facility.

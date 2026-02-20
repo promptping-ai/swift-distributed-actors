@@ -396,7 +396,7 @@ extension _ActorShell {
 }
 
 /// Errors which can occur while executing actions on the [ActorContext].
-public struct _ActorContextError: Error, CustomStringConvertible {
+public struct _ActorContextError: Error, CustomStringConvertible, @unchecked Sendable {
     internal enum __ActorContextError {
         /// It is illegal to `context.stop(context.myself)` as it would result in potentially unexpected behavior,
         /// as the actor would continue running until it receives the stop message. Rather, to stop the current actor

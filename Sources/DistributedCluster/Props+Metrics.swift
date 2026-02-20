@@ -51,7 +51,7 @@ extension _Props {
     }
 }
 
-public struct MetricsProps: CustomStringConvertible {
+public struct MetricsProps: CustomStringConvertible, Sendable {
     /// Set of built-in active metrics
     public var active: ActiveMetricsOptionSet
 
@@ -77,7 +77,7 @@ public struct MetricsProps: CustomStringConvertible {
 }
 
 /// Defines which per actor (group) metrics are enabled for a given actor.
-public struct ActiveMetricsOptionSet: OptionSet {
+public struct ActiveMetricsOptionSet: OptionSet, Sendable {
     public let rawValue: Int
 
     public init(rawValue: Int) {

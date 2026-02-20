@@ -135,7 +135,7 @@ public final class TimeoutBasedDowningStrategy: DowningStrategy {
     }
 }
 
-public struct TimeoutBasedDowningStrategySettings {
+public struct TimeoutBasedDowningStrategySettings: Sendable {
     /// Provides a slight delay after noticing an `.unreachable` before declaring down.
     ///
     /// Generally with a distributed failure detector such delay may not be necessary, however it is available in case

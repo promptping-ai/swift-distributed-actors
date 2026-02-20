@@ -505,7 +505,7 @@ public struct ServiceDiscoverySettings {
 // MARK: Remote Call Settings
 
 extension ClusterSystemSettings {
-    public struct RemoteCallSettings {
+    public struct RemoteCallSettings: Sendable {
         public static var `default`: RemoteCallSettings {
             .init()
         }
@@ -517,8 +517,8 @@ extension ClusterSystemSettings {
 
         public var codableErrorAllowance: CodableErrorAllowanceSettings = .all
 
-        public struct CodableErrorAllowanceSettings {
-            internal enum CodableErrorAllowance {
+        public struct CodableErrorAllowanceSettings: Sendable {
+            internal enum CodableErrorAllowance: Sendable {
                 case none
                 case all
                 // OIDs of allowed types
