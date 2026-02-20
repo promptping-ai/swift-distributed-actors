@@ -26,11 +26,12 @@ import class NIOExtras.LengthFieldPrepender
 typealias Framing = LengthFieldBasedFrameDecoder
 
 /// Error indicating that after an operation some unused bytes are left.
-public struct LeftOverBytesError: Error {
+public struct LeftOverBytesError: Error, Sendable {
     public let leftOverBytes: ByteBuffer
 }
 
-private final class InitiatingHandshakeHandler: ChannelInboundHandler, RemovableChannelHandler {
+/// NIO ChannelHandler: all mutations occur on the owning EventLoop thread per NIO's threading contract.
+private final class InitiatingHandshakeHandler: ChannelInboundHandler, RemovableChannelHandler, @unchecked Sendable {
     typealias InboundIn = ByteBuffer
     typealias InboundOut = ByteBuffer
     typealias OutboundOut = ByteBuffer
@@ -108,7 +109,8 @@ private final class InitiatingHandshakeHandler: ChannelInboundHandler, Removable
     }
 }
 
-final class ReceivingHandshakeHandler: ChannelInboundHandler, RemovableChannelHandler {
+/// NIO ChannelHandler: all mutations occur on the owning EventLoop thread per NIO's threading contract.
+final class ReceivingHandshakeHandler: ChannelInboundHandler, RemovableChannelHandler, @unchecked Sendable {
     typealias InboundIn = ByteBuffer
     typealias InboundOut = Never
 
@@ -199,14 +201,15 @@ final class ReceivingHandshakeHandler: ChannelInboundHandler, RemovableChannelHa
     }
 }
 
-enum HandlerRole {
+enum HandlerRole: Sendable {
     case client
     case server
 }
 
 /// Will send `HandshakeMagicBytes` as the first two bytes for a new connection
 /// and remove itself from the pipeline afterwards.
-private final class ProtocolMagicBytesPrepender: ChannelOutboundHandler, RemovableChannelHandler {
+/// NIO ChannelHandler: all mutations occur on the owning EventLoop thread per NIO's threading contract.
+private final class ProtocolMagicBytesPrepender: ChannelOutboundHandler, RemovableChannelHandler, @unchecked Sendable {
     typealias OutboundIn = ByteBuffer
     typealias OutboundOut = ByteBuffer
 
@@ -222,7 +225,8 @@ private final class ProtocolMagicBytesPrepender: ChannelOutboundHandler, Removab
 
 /// Validates that the first two bytes for a new connection are equal to `HandshakeMagicBytes`
 /// and removes itself from the pipeline afterwards.
-private final class ProtocolMagicBytesValidator: ChannelInboundHandler, RemovableChannelHandler {
+/// NIO ChannelHandler: all mutations occur on the owning EventLoop thread per NIO's threading contract.
+private final class ProtocolMagicBytesValidator: ChannelInboundHandler, RemovableChannelHandler, @unchecked Sendable {
     typealias InboundIn = ByteBuffer
     typealias InboundOut = ByteBuffer
 
@@ -245,7 +249,8 @@ private final class ProtocolMagicBytesValidator: ChannelInboundHandler, Removabl
     }
 }
 
-private final class WireEnvelopeHandler: ChannelDuplexHandler {
+/// NIO ChannelHandler: all mutations occur on the owning EventLoop thread per NIO's threading contract.
+private final class WireEnvelopeHandler: ChannelDuplexHandler, @unchecked Sendable {
     typealias OutboundIn = Wire.Envelope
     typealias OutboundOut = ByteBuffer
     typealias InboundIn = ByteBuffer
@@ -299,7 +304,8 @@ private final class WireEnvelopeHandler: ChannelDuplexHandler {
 // ==== ----------------------------------------------------------------------------------------------------------------
 // MARK: Outbound Message handler
 
-final class OutboundSerializationHandler: ChannelOutboundHandler {
+/// NIO ChannelHandler: all mutations occur on the owning EventLoop thread per NIO's threading contract.
+final class OutboundSerializationHandler: ChannelOutboundHandler, @unchecked Sendable {
     typealias OutboundIn = TransportEnvelope
     typealias OutboundOut = Wire.Envelope
 
@@ -357,7 +363,8 @@ final class OutboundSerializationHandler: ChannelOutboundHandler {
 ///
 /// It follows the "Shell" pattern, all actual logic is implemented in the `OutboundSystemMessageRedelivery`
 /// and `InboundSystemMessages`
-internal final class SystemMessageRedeliveryHandler: ChannelDuplexHandler {
+/// NIO ChannelHandler: all mutations occur on the owning EventLoop thread per NIO's threading contract.
+internal final class SystemMessageRedeliveryHandler: ChannelDuplexHandler, @unchecked Sendable {
     // we largely pass-through messages, however if they are system messages we keep them buffered for potential re-delivery
     typealias OutboundIn = TransportEnvelope
     typealias OutboundOut = TransportEnvelope
@@ -625,7 +632,8 @@ extension SystemMessageRedeliveryHandler {
 }
 
 /// Deserializes and delivers user messages (i.e. anything that is not a system message).
-private final class UserMessageHandler: ChannelInboundHandler {
+/// NIO ChannelHandler: all mutations occur on the owning EventLoop thread per NIO's threading contract.
+private final class UserMessageHandler: ChannelInboundHandler, @unchecked Sendable {
     typealias InboundIn = Wire.Envelope
     typealias InboundOut = Never  // we terminate here, by sending messages off to local actors
 
@@ -692,7 +700,8 @@ private final class UserMessageHandler: ChannelInboundHandler {
     }
 }
 
-private final class DumpRawBytesDebugHandler: ChannelInboundHandler {
+/// NIO ChannelHandler: all mutations occur on the owning EventLoop thread per NIO's threading contract.
+private final class DumpRawBytesDebugHandler: ChannelInboundHandler, @unchecked Sendable {
     typealias InboundIn = ByteBuffer
 
     let role: HandlerRole
@@ -901,7 +910,9 @@ extension EventLoop {
 // MARK: TransportEnvelope
 
 /// Mirrors `Envelope` however ensures that the payload is a message; i.e. it cannot be a closure.
-internal struct TransportEnvelope: CustomStringConvertible, CustomDebugStringConvertible {
+/// @unchecked Sendable: Storage.message contains `Any` for type-erased actor messages.
+/// TransportEnvelopes are created and consumed within the NIO pipeline on EventLoop threads.
+internal struct TransportEnvelope: CustomStringConvertible, CustomDebugStringConvertible, @unchecked Sendable {
     let storage: Storage
     enum Storage {
         /// Note: MAY contain SystemMessageEnvelope
@@ -1003,6 +1014,6 @@ internal struct TransportEnvelope: CustomStringConvertible, CustomDebugStringCon
 // ==== ----------------------------------------------------------------------------------------------------------------
 // MARK: Errors
 
-enum WireFormatError: Error {
+enum WireFormatError: Error, Sendable {
     case notEnoughBytes(expectedAtLeastBytes: Int, hint: String?)
 }

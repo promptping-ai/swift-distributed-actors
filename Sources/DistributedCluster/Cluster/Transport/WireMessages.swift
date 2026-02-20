@@ -12,20 +12,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-internal protocol WireMessage {}
+internal protocol WireMessage: Sendable {}
 
 /// The wire protocol data types are namespaced using this enum.
 ///
 /// When written onto they wire they are serialized to their transport specific formats (e.g. using protobuf or hand-rolled serializers).
 /// These models are intentionally detached from their serialized forms.
-internal enum Wire {
+internal enum Wire: Sendable {
     typealias Message = WireMessage
 
     /// The wire protocol version is the DistributedCluster version (at least now)
     public typealias Version = ClusterSystem.Version
 
     /// Envelope type carrying messages over the network.
-    struct Envelope: Codable {
+    struct Envelope: Codable, Sendable {
         /// This is a very blessed type hint, as it encapsulates all messages and is _assumed_ on the receiving end as the outer wrapper.
         static var typeHint: String = "_$Awe"  // Swift Actors wire envelope
 
@@ -39,14 +39,16 @@ internal enum Wire {
     }
 
     // TODO: such messages should go over a priority lane
-    internal struct HandshakeOffer: Equatable, WireMessage {
+    internal struct HandshakeOffer: Equatable, Sendable, WireMessage {
         internal var version: Version
 
         internal var originNode: Cluster.Node
         internal var targetEndpoint: Cluster.Endpoint
     }
 
-    internal enum HandshakeResponse: WireMessage {
+    // @unchecked Sendable: contains HandshakeAccept/Reject which hold non-Sendable closures
+    // (onHandshakeReplySent). These closures are only invoked on the NIO EventLoop thread.
+    internal enum HandshakeResponse: WireMessage, @unchecked Sendable {
         case accept(HandshakeAccept)
         case reject(HandshakeReject)
 
@@ -59,7 +61,8 @@ internal enum Wire {
         }
     }
 
-    internal struct HandshakeAccept: WireMessage {
+    // @unchecked Sendable: onHandshakeReplySent closure is non-Sendable but only invoked on the NIO EventLoop thread.
+    internal struct HandshakeAccept: WireMessage, @unchecked Sendable {
         internal let version: Version
         // TODO: Maybe offeringToSpeakAtVersion or something like that?
 
@@ -87,7 +90,8 @@ internal enum Wire {
     }
 
     /// Negative. We can not establish an association with this node.
-    internal struct HandshakeReject: WireMessage {
+    // @unchecked Sendable: onHandshakeReplySent closure is non-Sendable but only invoked on the NIO EventLoop thread.
+    internal struct HandshakeReject: WireMessage, @unchecked Sendable {
         internal let version: Version
         internal let reason: String
 
