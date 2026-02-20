@@ -123,6 +123,7 @@ extension ClusterSystem {
     /// it shall include its local system's address. When using Codable serialization this is done automatically,
     /// and when implementing custom serializers the `Serialization.Context` should be used to access the node address
     /// to include while serializing the address.
+    // @unchecked required: contains DistributedActorContext (class) and ActorMetadata (class with lock-based thread safety)
     public struct ActorID: @unchecked Sendable {
         /// Knowledge about a node being `local` is purely an optimization, and should not be relied on by actual code anywhere.
         /// It is on purpose not exposed to end-user code as well, and must remain so to not break the location transparency promises made by the runtime.

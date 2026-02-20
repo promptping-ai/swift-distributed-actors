@@ -33,7 +33,7 @@ extension Cluster {
     /// ### Member state transitions
     /// Members can only move "forward" along their status lifecycle, refer to ``Cluster/MemberStatus``
     /// docs for a diagram of legal transitions.
-    public struct Membership: ExpressibleByArrayLiteral {
+    public struct Membership: Sendable, ExpressibleByArrayLiteral {
         public typealias ArrayLiteralElement = Cluster.Member
 
         /// Initialize an empty membership (with no members).

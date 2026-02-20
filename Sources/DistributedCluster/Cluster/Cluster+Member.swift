@@ -20,7 +20,7 @@ extension Cluster {
     ///
     /// It carries `Cluster.MemberStatus` and reachability information.
     /// Its identity is the underlying `Cluster.Node`, other fields are not taken into account when comparing members.
-    public struct Member: Hashable {
+    public struct Member: Sendable, Hashable {
         /// Unique node of this cluster member.
         public let node: Cluster.Node
 
@@ -163,7 +163,7 @@ extension Cluster.Member: Codable {
 
 extension Cluster {
     /// Describes the status of a member within the clusters lifecycle.
-    public enum MemberStatus: String, CaseIterable, Comparable {
+    public enum MemberStatus: String, Sendable, CaseIterable, Comparable {
         public static var allCases: [MemberStatus] {
             [.joining, .up, .leaving, .down, .removed]
         }
@@ -296,7 +296,7 @@ extension Cluster {
     /// and `.unreachable` states multiple times during the lifetime of a member.
     ///
     /// - SeeAlso: `SWIM` for a distributed failure detector implementation which may issue unreachable events.
-    public enum MemberReachability: String, Equatable {
+    public enum MemberReachability: String, Sendable, Equatable {
         /// The member is reachable and responding to failure detector probing properly.
         case reachable
         /// Failure detector has determined this node as not reachable.
