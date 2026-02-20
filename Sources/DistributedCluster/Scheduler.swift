@@ -57,7 +57,9 @@ final class FlagCancelable: Cancelable, @unchecked Sendable {
     }
 }
 
-extension DispatchWorkItem: @retroactive Cancelable {
+// @unchecked Sendable: DispatchWorkItem is from Dispatch and is safe to use across concurrency boundaries.
+// Cancelable is an in-module protocol so no @retroactive needed.
+extension DispatchWorkItem: Cancelable, @retroactive @unchecked Sendable {
     @usableFromInline
     var isCanceled: Bool {
         self.isCancelled
@@ -65,7 +67,7 @@ extension DispatchWorkItem: @retroactive Cancelable {
 }
 
 // TODO: this is mostly only a placeholder impl; we'd need a proper wheel timer most likely
-extension DispatchQueue: Scheduler, @unchecked Sendable {
+extension DispatchQueue: Scheduler {
     func scheduleOnce(delay: Duration, _ f: @escaping () -> Void) -> Cancelable {
         let workItem = DispatchWorkItem(block: f)
         self.asyncAfter(deadline: .init(nowDelayedBy: delay), execute: workItem)

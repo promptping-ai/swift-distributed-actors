@@ -33,7 +33,7 @@ extension Cluster {
 extension Cluster {
     /// Represents a change made to a `Membership`, it can be received from gossip and shall be applied to local memberships,
     /// or may originate from local decisions (such as joining or downing).
-    public struct MembershipChange: Hashable {
+    public struct MembershipChange: Hashable, Sendable {
         /// Current member that is part of the membership after this change
         public internal(set) var member: Member
 

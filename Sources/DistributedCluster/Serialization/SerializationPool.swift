@@ -131,7 +131,10 @@ public final class _SerializationPool: @unchecked Sendable {
         workerPool: AffinityThreadPool,
         task: @escaping @Sendable () throws -> Message
     ) {
-        self.enqueue(recipientPath: recipientPath, onComplete: promise.completeWith, workerPool: workerPool, task: { try task() })
+        // EventLoopPromise.completeWith is thread-safe (it dispatches to the event loop),
+        // but its function type isn't marked @Sendable. Wrap in explicit @Sendable closure.
+        nonisolated(unsafe) let promise = promise
+        self.enqueue(recipientPath: recipientPath, onComplete: { result in promise.completeWith(result) }, workerPool: workerPool, task: { try task() })
     }
 
     @inline(__always)

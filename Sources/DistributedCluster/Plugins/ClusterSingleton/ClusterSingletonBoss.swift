@@ -566,8 +566,12 @@ struct ClusterSingletonRemoteCallInterceptor<Singleton: ClusterSingleton>: Remot
         }
 
         let invocation = invocation  // can't capture inout param
+        // Capture metatypes as local lets to silence Swift 6 non-Sendable capture warnings.
+        // Metatypes are inherently safe to share across concurrency boundaries.
+        let throwingType = throwing
+        nonisolated(unsafe) let returningType = returning
         let result = try await self.singletonBoss.whenLocal { __secretlyKnownToBeLocal in  // TODO(distributed): this is annoying, we must track "known to be local" in typesystem instead
-            try await __secretlyKnownToBeLocal.forwardOrStashRemoteCall(target: target, invocation: invocation, throwing: throwing, returning: returning)
+            try await __secretlyKnownToBeLocal.forwardOrStashRemoteCall(target: target, invocation: invocation, throwing: throwingType, returning: returningType)
         }
 
         guard let result = result else {
