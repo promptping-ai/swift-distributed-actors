@@ -122,7 +122,9 @@ public struct _Props: @unchecked Sendable {
 /// These props must be used during `_spawn` which happens on `actorReady`.
 ///
 /// This is somewhat of a relict of ActorRef infrastructure and should eventually be removed.
-// @unchecked required: contains _Props which is @unchecked Sendable
+// Phase 2: @unchecked required: stores _Props, which is itself @unchecked Sendable because it holds
+// ActorMetadata (class) and _DispatcherProps (contains non-Sendable DispatchQueue/EventLoopGroup).
+// Address the root cause in _Props (and ActorMetadata) first.
 struct _PropsShuttle: @unchecked Sendable, Codable {
     let props: _Props
     init(props: _Props) {
