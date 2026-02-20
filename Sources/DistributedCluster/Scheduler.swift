@@ -55,7 +55,7 @@ final class FlagCancelable: Cancelable, @unchecked Sendable {
     }
 }
 
-extension DispatchWorkItem: Cancelable {
+extension DispatchWorkItem: @retroactive Cancelable {
     @usableFromInline
     var isCanceled: Bool {
         self.isCancelled
