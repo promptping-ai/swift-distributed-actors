@@ -26,7 +26,8 @@ import NIO
 /// Termination of local actors is simply whenever they deinitialize.
 /// Remote actors are considered terminated when they deinitialize, same as local actors,
 /// or when the node hosting them is declared `.down`.
-final class LifecycleWatchContainer {
+// @unchecked Sendable: Thread safety is provided by _lock (DispatchSemaphore) guarding all mutable state.
+final class LifecycleWatchContainer: @unchecked Sendable {
     private let _lock = DispatchSemaphore(value: 1)
 
     internal let watcherID: ClusterSystem.ActorID

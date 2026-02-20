@@ -98,7 +98,8 @@ public struct LeaderElectionResult: _AsyncResult {
 public struct Leadership {}
 
 extension Leadership {
-    final class Shell {
+    // @unchecked Sendable: Mutable state is only accessed from within the actor's mailbox run (single-threaded).
+    final class Shell: @unchecked Sendable {
         static let naming: _ActorNaming = "leadership"
 
         private var membership: Cluster.Membership  // FIXME: we need to ensure the membership is always up to date -- we need the initial snapshot or a diff from a zero state etc.
@@ -111,6 +112,7 @@ extension Leadership {
 
         var behavior: _Behavior<Cluster.Event> {
             .setup { context in
+                nonisolated(unsafe) let context = context
                 context.log.trace("Configured with \(self.election)")
                 context.system.cluster.events.subscribe(context.myself)
 
@@ -122,6 +124,7 @@ extension Leadership {
 
         private var ready: _Behavior<Cluster.Event> {
             .receive { context, event in
+                nonisolated(unsafe) let context = context
                 switch event {
                 case .snapshot(let membership):
                     self.membership = membership
@@ -150,6 +153,7 @@ extension Leadership {
         }
 
         func runElection(_ context: _ActorContext<Cluster.Event>) -> _Behavior<Cluster.Event> {
+            nonisolated(unsafe) let context = context
             var electionContext = LeaderElectionContext(context)
             electionContext.log[metadataKey: "leadership/election"] = "\(String(reflecting: type(of: self.election)))"
             let electionResult = self.election.runElection(context: electionContext, membership: self.membership)

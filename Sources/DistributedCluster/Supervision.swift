@@ -409,7 +409,8 @@ extension ProcessingAction {
 /// Handles failures that may occur during message (or signal) handling within an actor.
 ///
 /// Currently not for user extension.
-internal class Supervisor<Message: Codable> {
+// @unchecked Sendable: Supervisor instances are only accessed from within the actor's mailbox run (single-threaded).
+internal class Supervisor<Message: Codable>: @unchecked Sendable {
     typealias Directive = SupervisionDirective<Message>
 
     internal final func interpretSupervised(target: _Behavior<Message>, context: _ActorContext<Message>, message: Message) throws -> _Behavior<Message> {
@@ -845,6 +846,7 @@ internal enum SupervisionRestartDelayedBehavior<Message: Codable> {
     @usableFromInline
     static func after(delay: Duration, with replacement: _Behavior<Message>) -> _Behavior<Message> {
         .setup { context in
+            nonisolated(unsafe) let context = context
             context.timers._startResumeTimer(key: _TimerKey("restartBackoff", isSystemTimer: true), delay: delay, resumeWith: WakeUp())
 
             return .suspend { (result: Result<WakeUp, Error>) in

@@ -392,6 +392,7 @@ extension ClusterShell {
     /// Once bound proceeds to `ready` state, where it remains to accept or initiate new handshakes.
     private func bind() -> _Behavior<Message> {
         .setup { context in
+            nonisolated(unsafe) let context = context
             // let clusterSettings = context.system.settings
             let bindNode = self.selfNode
 
@@ -497,7 +498,8 @@ extension ClusterShell {
     ///
     /// Serves as main "driver" for handshake and association state machines.
     private func ready(state: ClusterShellState) -> _Behavior<Message> {
-        func receiveShellCommand(_ context: _ActorContext<Message>, command: CommandMessage) -> _Behavior<Message> {
+        nonisolated(unsafe) let state = state
+        @Sendable func receiveShellCommand(_ context: _ActorContext<Message>, command: CommandMessage) -> _Behavior<Message> {
             state.tracelog(.inbound, message: command)
 
             switch command {
@@ -538,7 +540,7 @@ extension ClusterShell {
             }
         }
 
-        func receiveQuery(_ context: _ActorContext<Message>, query: QueryMessage) -> _Behavior<Message> {
+        @Sendable func receiveQuery(_ context: _ActorContext<Message>, query: QueryMessage) -> _Behavior<Message> {
             state.tracelog(.inbound, message: query)
 
             switch query {
@@ -551,7 +553,7 @@ extension ClusterShell {
             }
         }
 
-        func receiveInbound(_ context: _ActorContext<Message>, message: InboundMessage) throws -> _Behavior<Message> {
+        @Sendable func receiveInbound(_ context: _ActorContext<Message>, message: InboundMessage) throws -> _Behavior<Message> {
             switch message {
             case .handshakeOffer(let offer, let channel, let promise):
                 self.tracelog(context, .receiveUnique(from: offer.originNode), message: offer)
@@ -576,7 +578,7 @@ extension ClusterShell {
         }
 
         /// Allows processing in one spot, all membership changes which we may have emitted in other places, due to joining, downing etc.
-        func receiveChangeMembershipRequest(_ context: _ActorContext<Message>, event: Cluster.Event) -> _Behavior<Message> {
+        @Sendable func receiveChangeMembershipRequest(_ context: _ActorContext<Message>, event: Cluster.Event) -> _Behavior<Message> {
             self.tracelog(context, .receive(from: state.selfNode.endpoint), message: event)
             var state = state
 
@@ -612,7 +614,7 @@ extension ClusterShell {
             return self.ready(state: state)
         }
 
-        func receiveMembershipGossip(
+        @Sendable func receiveMembershipGossip(
             _ context: _ActorContext<Message>,
             _ state: ClusterShellState,
             gossip: Cluster.MembershipGossip

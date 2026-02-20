@@ -48,6 +48,7 @@ internal final class GossipShell<Gossip: Codable, Acknowledgement: Codable>: @un
 
     var behavior: _Behavior<Message> {
         .setup { context in
+            nonisolated(unsafe) let context = context
             self.ensureNextGossipRound(context)
             self.initPeerDiscovery(context)
 
@@ -256,7 +257,7 @@ internal final class GossipShell<Gossip: Codable, Acknowledgement: Codable>: @un
         identifier: AnyGossipIdentifier,
         _ payload: Gossip,
         to target: PeerRef,
-        onGossipAck: @escaping (Acknowledgement) -> Void
+        onGossipAck: @escaping @Sendable (Acknowledgement) -> Void
     ) {
         context.log.trace(
             "Sending gossip to \(target.id)",
@@ -325,7 +326,7 @@ extension GossipShell {
             return  // nothing to do, peers will be introduced manually
 
         case .onClusterMember(let atLeastStatus, let resolvePeerOn):
-            func resolveInsertPeer(_ context: _ActorContext<Message>, member: Cluster.Member) {
+            @Sendable func resolveInsertPeer(_ context: _ActorContext<Message>, member: Cluster.Member) {
                 guard member.node != context.system.cluster.node else {
                     return  // ignore self node
                 }

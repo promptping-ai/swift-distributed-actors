@@ -115,7 +115,8 @@ extension _SystemMessage {
 // ==== ----------------------------------------------------------------------------------------------------------------
 // MARK: Outbound Re-Delivery
 
-internal final class OutboundSystemMessageRedelivery {
+// @unchecked Sendable: Only accessed from within the NIO channel pipeline (single-threaded).
+internal final class OutboundSystemMessageRedelivery: @unchecked Sendable {
     typealias ACK = _SystemMessage.ACK
     typealias NACK = _SystemMessage.NACK
     typealias SequenceNr = SystemMessageEnvelope.SequenceNr
@@ -284,7 +285,8 @@ struct GiveUpRedeliveringSystemMessagesError: Error {}
 
 /// Each association has one inbound system message queue.
 @usableFromInline
-internal class InboundSystemMessages {
+// @unchecked Sendable: Only accessed from within the NIO channel pipeline (single-threaded).
+internal class InboundSystemMessages: @unchecked Sendable {
     typealias ACK = _SystemMessage.ACK
     typealias NACK = _SystemMessage.NACK
     typealias SequenceNr = SystemMessageEnvelope.SequenceNr

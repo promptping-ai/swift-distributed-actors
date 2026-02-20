@@ -67,6 +67,7 @@ public struct OnDownActionStrategySettings {
 
         case .gracefulShutdown(let shutdownDelay):
             return { system in
+                nonisolated(unsafe) let system = system
                 try system._spawn(
                     "leaver",
                     of: String.self,

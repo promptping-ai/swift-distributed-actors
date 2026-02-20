@@ -185,10 +185,16 @@ internal distributed actor SWIMActor: SWIMPeer, SWIMAddressablePeer, CustomStrin
         let startedSendingPingRequestsSentAt: DispatchTime = .now()
         let pingRequestResponseTimeFirstTimer = self.swim.metrics.shell.pingRequestResponseTimeFirst
 
+        // nonisolated(unsafe): log, metrics, swim are captured from actor-isolated context into @Sendable
+        // TaskGroup closures. Thread safety is guaranteed by the distributed actor's isolation — these
+        // captures are only used for logging/metrics within the task group and the actor serializes access.
+        nonisolated(unsafe) let log = self.log
+        nonisolated(unsafe) let metrics = self.metrics
+        nonisolated(unsafe) let swim = self.swim!
         let firstSuccessful = await withTaskGroup(
             of: SWIM.PingResponse<SWIMActor, SWIMActor>.self,
             returning: SWIM.PingResponse<SWIMActor, SWIMActor>?.self
-        ) { [log, metrics, swim] group in
+        ) { group in
             for pingRequest in directive.requestDetails {
                 group.addTask {
                     let peerToPingRequestThrough = pingRequest.peerToPingRequestThrough
@@ -213,7 +219,7 @@ internal distributed actor SWIMActor: SWIMPeer, SWIMAddressablePeer, CustomStrin
                     } catch {
                         log.debug(
                             ".pingRequest resulted in error",
-                            metadata: swim!.metadata([  // !-safe, initialized in init()
+                            metadata: swim.metadata([
                                 "swim/pingRequest/target": "\(peerToPing)",
                                 "swim/pingRequest/peerToPingRequestThrough": "\(peerToPingRequestThrough)",
                                 "swim/pingRequest/sequenceNumber": "\(sequenceNumber)",

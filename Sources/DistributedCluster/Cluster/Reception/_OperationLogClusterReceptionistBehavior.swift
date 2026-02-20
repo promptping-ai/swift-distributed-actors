@@ -18,7 +18,8 @@ import Logging
 // ==== ----------------------------------------------------------------------------------------------------------------
 // MARK: Cluster (OpLog) Receptionist
 
-public final class _OperationLogClusterReceptionist {
+// @unchecked Sendable: Mutable state is only accessed from within the actor's mailbox run (single-threaded).
+public final class _OperationLogClusterReceptionist: @unchecked Sendable {
     typealias Message = Receptionist.Message
     typealias ReceptionistRef = _ActorRef<Message>
 
@@ -93,6 +94,7 @@ public final class _OperationLogClusterReceptionist {
 
     var behavior: _Behavior<Message> {
         .setup { context in
+            nonisolated(unsafe) let context = context
             context.log.debug("Initialized receptionist")
 
             // === listen to cluster events ------------------

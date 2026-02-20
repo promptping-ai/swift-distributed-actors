@@ -98,7 +98,10 @@ extension DistributedReception {
             AsyncIterator(receptionist: self.receptionist, key: self.key, file: self.file, line: self.line)
         }
 
-        public class AsyncIterator: AsyncIteratorProtocol {
+        // @unchecked Sendable: The underlying AsyncStream.Iterator is accessed only sequentially
+        // through the AsyncIteratorProtocol's next() method. The mutable `underlying` property is
+        // set once during init and then only read via next().
+        public class AsyncIterator: AsyncIteratorProtocol, @unchecked Sendable {
             var underlying: AsyncStream<Element>.Iterator!
 
             init(

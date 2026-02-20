@@ -75,6 +75,9 @@ public final class _SerializationPool: @unchecked Sendable {
         recipientPath: ActorPath,
         promise: EventLoopPromise<Serialization.Serialized>
     ) {
+        // nonisolated(unsafe): message is Any which is not Sendable, but serialization closures
+        // are only executed on the serialization worker pool threads and the message is consumed once.
+        nonisolated(unsafe) let message = message
         // TODO: also record thr delay between submitting and starting serialization work here?
         self.enqueue(recipientPath: recipientPath, promise: promise, workerPool: self.serializationWorkerPool) {
             do {

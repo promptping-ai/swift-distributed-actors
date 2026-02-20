@@ -38,6 +38,7 @@ public struct ClusterEventStream: AsyncSequence {
     }
 
     nonisolated func subscribe(_ ref: _ActorRef<Cluster.Event>, file: String = #filePath, line: UInt = #line) {
+        nonisolated(unsafe) let ref = ref
         Task {
             await self._subscribe(ref, file: file, line: line)
         }
@@ -52,6 +53,7 @@ public struct ClusterEventStream: AsyncSequence {
     }
 
     nonisolated func unsubscribe(_ ref: _ActorRef<Cluster.Event>, file: String = #filePath, line: UInt = #line) {
+        nonisolated(unsafe) let ref = ref
         Task {
             await self._unsubscribe(ref, file: file, line: line)
         }

@@ -256,9 +256,11 @@ internal enum AskActor {
         function: String,
         line: UInt
     ) -> _Behavior<ResponseType> {
+        nonisolated(unsafe) let completable = completable
         // TODO: could we optimize the case when the target is _local_ and _terminated_ so we don't have to do the watch dance (heavy if we did it always),
         // but make dead letters tell us back that our ask will never reply?
-        .setup { context in
+        return .setup { context in
+            nonisolated(unsafe) let context = context
             var scheduledTimeout: Scheduled<Void>?
             if !timeout.isEffectivelyInfinite {
                 let timeoutSub = context.subReceive(Event.self) { event in

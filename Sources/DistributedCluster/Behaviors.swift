@@ -59,13 +59,19 @@ extension _Behavior {
         let loop = context.system._eventLoopGroup.next()
         let promise = loop.makePromise(of: _Behavior<Message>.self)
 
+        // nonisolated(unsafe): Message may not conform to Sendable, and EventLoopPromise is not Sendable,
+        // but both are consumed exactly once in the Task closure. Thread safety is guaranteed by the
+        // actor mailbox serialization.
+        nonisolated(unsafe) let message = message
+        nonisolated(unsafe) let unsafePromise = promise
+
         // TODO: pretty sub-optimal, but we'll flatten this all out eventually
         Task {
             do {
                 let next = try await recv(message)
-                promise.succeed(next)
+                unsafePromise.succeed(next)
             } catch {
-                promise.fail(error)
+                unsafePromise.fail(error)
             }
         }
 
@@ -81,7 +87,8 @@ extension _Behavior {
         _ message: Message
     ) -> _Behavior<Message> {
         .setup { context in
-            receiveAsync0(
+            nonisolated(unsafe) let context = context
+            return receiveAsync0(
                 { message in
                     try await recv(context, message)
                 },
