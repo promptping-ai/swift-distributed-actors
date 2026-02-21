@@ -29,6 +29,7 @@ import NIO
 /// For example, a skull would be a classic example of a "prop" used while performing the William Shakespeare's
 /// Hamlet Act III, scene 1, saying "To be, or not to be, that is the question: [...]." In the same sense,
 /// props for Swift Distributed Actors are accompanying objects/settings, which help the actor perform its duties.
+// @unchecked required: contains ActorMetadata (class) and _DispatcherProps (holds non-Sendable DispatchQueue/EventLoopGroup)
 public struct _Props: @unchecked Sendable {
     internal var dispatcher: _DispatcherProps = .default
 
@@ -121,6 +122,9 @@ public struct _Props: @unchecked Sendable {
 /// These props must be used during `_spawn` which happens on `actorReady`.
 ///
 /// This is somewhat of a relict of ActorRef infrastructure and should eventually be removed.
+// Phase 2: @unchecked required: stores _Props, which is itself @unchecked Sendable because it holds
+// ActorMetadata (class) and _DispatcherProps (contains non-Sendable DispatchQueue/EventLoopGroup).
+// Address the root cause in _Props (and ActorMetadata) first.
 struct _PropsShuttle: @unchecked Sendable, Codable {
     let props: _Props
     init(props: _Props) {
