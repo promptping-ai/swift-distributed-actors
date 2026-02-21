@@ -17,7 +17,7 @@ import Dispatch
 import DistributedActorsConcurrencyHelpers
 
 @usableFromInline
-protocol Cancelable {
+protocol Cancelable: Sendable {
     /// Attempts to cancel the cancellable. Returns true when successful, or false
     /// when unsuccessful, or it was already cancelled.
     func cancel()
@@ -38,6 +38,8 @@ internal protocol Scheduler: Sendable {
     func schedule<Message>(initialDelay: Duration, interval: Duration, receiver: _ActorRef<Message>, message: Message) -> Cancelable
 }
 
+// @unchecked Sendable: flag is a ManagedAtomic<Bool> which is itself Sendable and provides
+// sequentially-consistent atomic operations. No other mutable state.
 final class FlagCancelable: Cancelable, @unchecked Sendable {
     private let flag: ManagedAtomic<Bool> = .init(false)
 
@@ -55,7 +57,7 @@ final class FlagCancelable: Cancelable, @unchecked Sendable {
     }
 }
 
-extension DispatchWorkItem: Cancelable {
+extension DispatchWorkItem: @retroactive Cancelable {
     @usableFromInline
     var isCanceled: Bool {
         self.isCancelled

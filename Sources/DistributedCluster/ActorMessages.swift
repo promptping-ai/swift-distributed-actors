@@ -120,7 +120,7 @@ public struct ErrorEnvelope: Error, Codable {
     }
 }
 
-public struct BestEffortStringError: Error, Codable, Equatable, CustomStringConvertible {
+public struct BestEffortStringError: Error, Codable, Equatable, Sendable, CustomStringConvertible {
     let representation: String
 
     public var description: String {

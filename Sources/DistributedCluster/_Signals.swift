@@ -68,6 +68,10 @@ public enum _Signals {
     /// explaining the reason for an actor having terminated.
     ///
     /// - SeeAlso: `_ChildTerminated` which is sent specifically to a parent-actor once its child has terminated.
+    /// @unchecked Sendable: This class hierarchy uses `open` for transport extensibility (custom transports
+    /// may subclass to carry additional termination info). All stored properties (id, existenceConfirmed,
+    /// nodeTerminated) are immutable `let` bindings, making instances safe to share across concurrency domains.
+    /// The only known subclass is `_ChildTerminated` (final), which adds one immutable optional field.
     open class Terminated: @unchecked Sendable, _Signal, CustomStringConvertible {
         /// Address of the terminated actor.
         public let id: ActorID
