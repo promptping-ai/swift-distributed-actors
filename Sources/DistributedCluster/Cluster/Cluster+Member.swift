@@ -133,13 +133,13 @@ extension Cluster.Member {
     /// few core nodes which become "old" and tons of ad-hoc spun up nodes which are always "young" as they are spawned
     /// and stopped on demand. Putting certain types of workloads onto "old(est)" nodes in such clusters has the benefit
     /// of most likely not needing to balance/move work off them too often (in face of many ad-hoc worker spawns).
-    public static let ageOrdering: (Cluster.Member, Cluster.Member) -> Bool = { l, r in
+    public nonisolated(unsafe) static let ageOrdering: (Cluster.Member, Cluster.Member) -> Bool = { l, r in
         (l._upNumber ?? 0) < (r._upNumber ?? 0)
     }
 
     /// An ordering by the members' `node` properties, e.g. 1.1.1.1 is "lower" than 2.2.2.2.
     /// This ordering somewhat unusual, however always consistent and used to select a leader -- see `LowestReachableMember`.
-    public static let lowestAddressOrdering: (Cluster.Member, Cluster.Member) -> Bool = { l, r in
+    public nonisolated(unsafe) static let lowestAddressOrdering: (Cluster.Member, Cluster.Member) -> Bool = { l, r in
         l.node < r.node
     }
 }
@@ -260,7 +260,7 @@ extension Cluster.MemberStatus: Codable {
 // MARK: Cluster.MemberStatus Ordering
 
 extension Cluster.MemberStatus {
-    public static let lifecycleOrdering: (Cluster.Member, Cluster.Member) -> Bool = { $0.status < $1.status }
+    public nonisolated(unsafe) static let lifecycleOrdering: (Cluster.Member, Cluster.Member) -> Bool = { $0.status < $1.status }
 }
 
 extension Cluster.MemberStatus {

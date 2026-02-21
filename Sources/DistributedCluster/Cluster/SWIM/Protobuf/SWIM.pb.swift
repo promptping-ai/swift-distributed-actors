@@ -204,7 +204,7 @@ public struct _ProtoSWIMStatus {
 
 extension _ProtoSWIMStatus.TypeEnum: CaseIterable {
     // The compiler won't synthesize support with the UNRECOGNIZED case.
-    public static var allCases: [_ProtoSWIMStatus.TypeEnum] = [
+    public static let allCases: [_ProtoSWIMStatus.TypeEnum] = [
         .unspecified,
         .alive,
         .suspect,
@@ -271,10 +271,10 @@ extension _ProtoSWIMPingResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageI
         2: .same(proto: "nack"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _pingResponse: _ProtoSWIMPingResponse.OneOf_PingResponse?
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -354,13 +354,13 @@ extension _ProtoSWIMPingResponse.Ack: SwiftProtobuf.Message, SwiftProtobuf._Mess
         4: .same(proto: "sequenceNumber"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _target: _ProtoActorID? = nil
         var _incarnation: UInt64 = 0
         var _payload: _ProtoSWIMGossipPayload? = nil
         var _sequenceNumber: UInt32 = 0
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -437,11 +437,11 @@ extension _ProtoSWIMPingResponse.Nack: SwiftProtobuf.Message, SwiftProtobuf._Mes
         2: .same(proto: "sequenceNumber"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _target: _ProtoActorID? = nil
         var _sequenceNumber: UInt32 = 0
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -558,12 +558,12 @@ extension _ProtoSWIMMember: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
         3: .same(proto: "protocolPeriod"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _id: _ProtoActorID? = nil
         var _status: _ProtoSWIMStatus? = nil
         var _protocolPeriod: UInt64 = 0
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 

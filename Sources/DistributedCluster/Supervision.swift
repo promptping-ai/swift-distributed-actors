@@ -15,7 +15,7 @@
 import Logging
 
 /// Properties configuring supervision for given actor.
-internal struct _SupervisionProps {
+internal struct _SupervisionProps: @unchecked Sendable {
     // internal var supervisionMappings: [ErrorTypeIdentifier: _SupervisionStrategy]
     // on purpose stored as list, to keep order in which the supervisors are added as we "scan" from first to last when we handle
     internal var supervisionMappings: [ErrorTypeBoundSupervisionStrategy]
@@ -388,7 +388,7 @@ internal enum ProcessingAction<Message: Codable> {
     case message(Message)
     case signal(_Signal)
     case closure(ActorClosureCarry)
-    case continuation(() throws -> _Behavior<Message>)  // TODO: make it a Carry type for better debugging
+    case continuation(@Sendable () throws -> _Behavior<Message>)  // TODO: make it a Carry type for better debugging
     case subMessage(SubMessageCarry)
 }
 
@@ -409,7 +409,8 @@ extension ProcessingAction {
 /// Handles failures that may occur during message (or signal) handling within an actor.
 ///
 /// Currently not for user extension.
-internal class Supervisor<Message: Codable> {
+// @unchecked Sendable: Supervisor instances are only accessed from within the actor's mailbox run (single-threaded).
+internal class Supervisor<Message: Codable>: @unchecked Sendable {
     typealias Directive = SupervisionDirective<Message>
 
     internal final func interpretSupervised(target: _Behavior<Message>, context: _ActorContext<Message>, message: Message) throws -> _Behavior<Message> {
@@ -432,7 +433,7 @@ internal class Supervisor<Message: Codable> {
         return try self.interpretSupervised0(target: target, context: context, processingAction: .subMessage(subMessage))
     }
 
-    internal final func interpretSupervised(target: _Behavior<Message>, context: _ActorContext<Message>, closure: @escaping () throws -> _Behavior<Message>) throws -> _Behavior<Message> {
+    internal final func interpretSupervised(target: _Behavior<Message>, context: _ActorContext<Message>, closure: @Sendable @escaping () throws -> _Behavior<Message>) throws -> _Behavior<Message> {
         traceLog_Supervision("CALLING CLOSURE: \(target)")
         return try self.interpretSupervised0(
             target: target,
@@ -845,6 +846,7 @@ internal enum SupervisionRestartDelayedBehavior<Message: Codable> {
     @usableFromInline
     static func after(delay: Duration, with replacement: _Behavior<Message>) -> _Behavior<Message> {
         .setup { context in
+            nonisolated(unsafe) let context = context
             context.timers._startResumeTimer(key: _TimerKey("restartBackoff", isSystemTimer: true), delay: delay, resumeWith: WakeUp())
 
             return .suspend { (result: Result<WakeUp, Error>) in

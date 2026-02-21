@@ -26,7 +26,9 @@ internal enum Child {
 /// Convenience methods for locating children are provided, although it is recommended to keep the `_ActorRef`
 /// of spawned actors in the context of where they are used, rather than looking them up continuously.
 // TODO(swift): remove the concept of child actors and the actor tree
-public class _Children {
+// @unchecked Sendable: Legacy C mailbox runtime. This type is planned for removal
+// when _ActorShell is replaced with Swift's native actor runtime. See GitHub issue #5.
+public class _Children: @unchecked Sendable {
     // Implementation note: access is optimized for fetching by name, as that's what we do during child lookup
     // as well as actor tree traversal.
     private typealias Name = String
@@ -394,8 +396,9 @@ extension _ActorShell {
 }
 
 /// Errors which can occur while executing actions on the [ActorContext].
-public struct _ActorContextError: Error, CustomStringConvertible {
-    internal enum __ActorContextError {
+// @unchecked Sendable: _Storage is a class with let-only properties — @unchecked justified.
+public struct _ActorContextError: Error, CustomStringConvertible, @unchecked Sendable {
+    internal enum __ActorContextError: Sendable {
         /// It is illegal to `context.stop(context.myself)` as it would result in potentially unexpected behavior,
         /// as the actor would continue running until it receives the stop message. Rather, to stop the current actor
         /// it should return `_Behavior.stop` from its receive block, which will cause it to immediately stop processing
@@ -411,7 +414,8 @@ public struct _ActorContextError: Error, CustomStringConvertible {
         case alreadyStopping(String)
     }
 
-    internal class _Storage {
+    // @unchecked Sendable: Class with let-only properties — @unchecked justified.
+    internal class _Storage: @unchecked Sendable {
         let error: __ActorContextError
         let file: String
         let line: UInt

@@ -31,7 +31,7 @@ extension Serialization {
     /// payload into the "right" type. Some serializers may not need hints, e.g. if the serializer is specialized to a
     /// specific type already -- in those situations not carrying the type `hint` is recommended as it may save precious
     /// bytes from the message envelope size on the wire.
-    public struct Manifest: Codable, Hashable {
+    public struct Manifest: Codable, Hashable, Sendable {
         /// Serializer used to serialize accompanied message.
         public let serializerID: SerializerID
 

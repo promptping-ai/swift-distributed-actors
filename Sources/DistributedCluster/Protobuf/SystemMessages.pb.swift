@@ -243,10 +243,10 @@ extension _ProtoSystemMessage: SwiftProtobuf.Message, SwiftProtobuf._MessageImpl
         3: .same(proto: "terminated"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _payload: _ProtoSystemMessage.OneOf_Payload?
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -334,11 +334,11 @@ extension _ProtoSystemMessage_Watch: SwiftProtobuf.Message, SwiftProtobuf._Messa
         2: .same(proto: "watcher"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _watchee: _ProtoActorID? = nil
         var _watcher: _ProtoActorID? = nil
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -403,11 +403,11 @@ extension _ProtoSystemMessage_Unwatch: SwiftProtobuf.Message, SwiftProtobuf._Mes
         2: .same(proto: "watcher"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _watchee: _ProtoActorID? = nil
         var _watcher: _ProtoActorID? = nil
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -473,12 +473,12 @@ extension _ProtoSystemMessage_Terminated: SwiftProtobuf.Message, SwiftProtobuf._
         3: .same(proto: "idTerminated"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _ref: _ProtoActorID? = nil
         var _existenceConfirmed: Bool = false
         var _idTerminated: Bool = false
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -607,11 +607,11 @@ extension _ProtoSystemMessageEnvelope: SwiftProtobuf.Message, SwiftProtobuf._Mes
         2: .same(proto: "message"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _sequenceNr: UInt64 = 0
         var _message: _ProtoSystemMessage? = nil
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 

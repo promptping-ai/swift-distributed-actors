@@ -17,8 +17,8 @@ import Logging
 // ==== ----------------------------------------------------------------------------------------------------------------
 // MARK: DowningStrategySettings
 
-public struct DowningStrategySettings {
-    private enum _DowningStrategySettings {
+public struct DowningStrategySettings: Sendable {
+    private enum _DowningStrategySettings: Sendable {
         case none
         case timeout(TimeoutBasedDowningStrategySettings)
     }
@@ -48,8 +48,8 @@ public struct DowningStrategySettings {
 // ==== ----------------------------------------------------------------------------------------------------------------
 // MARK: OnDownActionStrategySettings
 
-public struct OnDownActionStrategySettings {
-    private enum _OnDownActionStrategySettings {
+public struct OnDownActionStrategySettings: @unchecked Sendable {
+    private enum _OnDownActionStrategySettings: @unchecked Sendable {
         case none
         case gracefulShutdown(delay: Duration)
     }
@@ -67,6 +67,7 @@ public struct OnDownActionStrategySettings {
 
         case .gracefulShutdown(let shutdownDelay):
             return { system in
+                nonisolated(unsafe) let system = system
                 try system._spawn(
                     "leaver",
                     of: String.self,

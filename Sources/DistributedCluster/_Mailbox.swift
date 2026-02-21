@@ -56,7 +56,9 @@ internal enum MailboxBitMasks {
     //                           = 0b0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0001_1101
 }
 
-internal final class _Mailbox<Message: Codable> {
+// @unchecked Sendable: Legacy C mailbox runtime. This type is planned for removal
+// when _ActorShell is replaced with Swift's native actor runtime. See GitHub issue #5.
+internal final class _Mailbox<Message: Codable>: @unchecked Sendable {
     weak var shell: _ActorShell<Message>?
     let _status: ManagedAtomic<UInt64> = .init(0)
     let userMessages: MPSCLinkedQueue<Payload>

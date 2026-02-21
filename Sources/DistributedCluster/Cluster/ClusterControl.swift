@@ -21,7 +21,11 @@ import NIO
 // MARK: Cluster Control
 
 /// Allows controlling the cluster, e.g. by issuing join/down commands, or subscribing to cluster events.
-public struct ClusterControl {
+// @unchecked Sendable: ClusterControl is a value type (struct) whose stored properties are either
+// immutable (settings, events, ref) or actor-protected (MembershipHolder actor). ClusterShell is
+// already @unchecked Sendable, and _ActorRef is @unchecked Sendable. Copies of this struct are safe
+// to pass across concurrency boundaries.
+public struct ClusterControl: @unchecked Sendable {
     /// Settings the cluster node is configured with.
     public let settings: ClusterSystemSettings
 
@@ -49,8 +53,9 @@ public struct ClusterControl {
     }
 
     internal func updateMembershipSnapshot(_ snapshot: Cluster.Membership) {
+        let holder = self._membershipSnapshotHolder
         Task {
-            await self._membershipSnapshotHolder.update(snapshot)
+            await holder.update(snapshot)
         }
     }
 

@@ -326,7 +326,7 @@ extension Serialization {
     /// Container for serialization output.
     ///
     /// Describing what serializer was used to serialize the value, and its serialized bytes
-    public struct Serialized {
+    public struct Serialized: Sendable {
         public let manifest: Serialization.Manifest
         public let buffer: Serialization.Buffer
     }
@@ -334,7 +334,7 @@ extension Serialization {
     /// Abstraction of bytes containers.
     ///
     /// Designed to minimize allocation and copies when switching between different byte container types.
-    public enum Buffer {
+    public enum Buffer: Sendable {
         case data(Data)
         case nioByteBuffer(ByteBuffer)
 
@@ -660,8 +660,10 @@ extension Serialization {
 // MARK: MetaTypes so we can store Type -> Serializer mappings
 
 /// A meta type is a type eraser for any `T`, such that we can still perform `value is T` checks.
+// @unchecked Sendable: _underlying (Any.Type?) and id (ObjectIdentifier) are immutable after init.
+// Any.Type is inherently thread-safe.
 @usableFromInline
-internal struct MetaType<T>: Hashable, CustomStringConvertible {
+internal struct MetaType<T>: Hashable, CustomStringConvertible, @unchecked Sendable {
     let _underlying: Any.Type?
     let id: ObjectIdentifier
 
@@ -726,8 +728,10 @@ extension MetaType: AnyMetaType {
     }
 }
 
+// @unchecked Sendable: _ensure closure is set at init and never mutated;
+// type (Any.Type) is inherently Sendable.
 @usableFromInline
-struct SerializerTypeKey: Hashable, CustomStringConvertible {
+struct SerializerTypeKey: Hashable, CustomStringConvertible, @unchecked Sendable {
     @usableFromInline
     let type: Any.Type
     @usableFromInline
@@ -789,8 +793,12 @@ extension Foundation.Data {
 // ==== ----------------------------------------------------------------------------------------------------------------
 // MARK: Serialization: Errors
 
-public struct SerializationError: Error, CustomStringConvertible {
-    internal enum _SerializationError {
+// SerializationError is @unchecked Sendable because _Storage is a class, but it is immutable after init
+// and its _SerializationError enum captures Error values that may not be Sendable.
+public struct SerializationError: Error, CustomStringConvertible, @unchecked Sendable {
+    // @unchecked Sendable: associated Error values may not conform to Sendable,
+    // but enum values are frozen at construction time and never mutated.
+    internal enum _SerializationError: @unchecked Sendable {
         case serializationError(_: Error, file: String, line: UInt)
 
         // --- registration errors ---
@@ -834,7 +842,8 @@ public struct SerializationError: Error, CustomStringConvertible {
         case notEnoughArgumentsEncoded(expected: Int, have: Int)
     }
 
-    internal class _Storage {
+    // @unchecked Sendable: all stored properties are immutable after init (let bindings).
+    internal class _Storage: @unchecked Sendable {
         let error: _SerializationError
         let file: String
         let line: UInt

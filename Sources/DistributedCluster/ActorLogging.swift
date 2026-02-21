@@ -18,7 +18,8 @@ import Foundation
 import Logging
 
 /// - Warning: NOT thread safe! Only use from Actors, properly synchronize access, or create multiple instances for each execution context.
-internal final class LoggingContext {
+// @unchecked Sendable: mutable metadata is always accessed from actor-isolated contexts.
+internal final class LoggingContext: @unchecked Sendable {
     // TODO: deprecate, we should not need this explicit type
 
     let identifier: String
@@ -305,7 +306,7 @@ extension Logger.MetadataValue {
     }
 }
 
-struct CustomPrettyStringConvertibleMetadataValue: CustomStringConvertible {
+struct CustomPrettyStringConvertibleMetadataValue: CustomStringConvertible, @unchecked Sendable {
     let value: CustomPrettyStringConvertible
 
     init(_ value: CustomPrettyStringConvertible) {
@@ -329,8 +330,9 @@ extension Optional where Wrapped == Logger.MetadataValue {
 
 /// Delays rendering of metadata value (e.g. into a string)
 ///
-/// NOT thread-safe, so all access should be guarded some synchronization method, e.g. only access from an Actor.
-internal class LazyMetadataBox: CustomStringConvertible {
+/// Thread-safe: Lock protects lazy initialization of cached value.
+internal class LazyMetadataBox: CustomStringConvertible, @unchecked Sendable {
+    private let lock = Lock()
     private var lazyValue: (() -> CustomStringConvertible)?
     private var _value: String?
 
@@ -341,13 +343,15 @@ internal class LazyMetadataBox: CustomStringConvertible {
     /// This allows caching a value in case it is accessed via an by name subscript,
     // rather than as part of rendering all metadata that a LoggingContext was carrying
     public var value: String {
-        if let f = self.lazyValue {
-            self._value = f().description
-            self.lazyValue = nil
-        }
+        self.lock.withLock {
+            if let f = self.lazyValue {
+                self._value = f().description
+                self.lazyValue = nil
+            }
 
-        assert(self._value != nil, "_value MUST NOT be nil once lazyValue() has run.")
-        return self._value!.description
+            assert(self._value != nil, "_value MUST NOT be nil once lazyValue() has run.")
+            return self._value!.description
+        }
     }
 
     public var description: String {

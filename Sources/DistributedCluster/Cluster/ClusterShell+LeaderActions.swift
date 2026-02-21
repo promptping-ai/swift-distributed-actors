@@ -100,9 +100,12 @@ extension ClusterShell {
 
         system.cluster.updateMembershipSnapshot(state.membership)
 
-        Task { [eventsToPublish, state] in
-            for event in eventsToPublish {
-                await state.events.publish(event)
+        // ClusterEventStream and [Cluster.Event] are both Sendable; no nonisolated(unsafe) needed.
+        let events = state.events
+        let capturedEvents = eventsToPublish
+        Task {
+            for event in capturedEvents {
+                await events.publish(event)
             }
         }
 

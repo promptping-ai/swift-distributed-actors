@@ -37,8 +37,10 @@ public struct InvocationMessage: Sendable, Codable, CustomStringConvertible {
 // FIXME(distributed): remove [#957](https://github.com/apple/swift-distributed-actors/issues/957)
 enum InvocationBehavior {
     static func behavior(instance weakInstance: WeakLocalRef<some DistributedActor>) -> _Behavior<InvocationMessage> {
-        _Behavior.setup { context in
-            ._receiveMessageAsync { (message) async throws -> _Behavior<InvocationMessage> in
+        nonisolated(unsafe) let weakInstance = weakInstance
+        return _Behavior.setup { context in
+            nonisolated(unsafe) let context = context
+            return ._receiveMessageAsync { (message) async throws -> _Behavior<InvocationMessage> in
                 guard let _ = weakInstance.actor else {
                     context.log.warning("Received message \(message) while distributed actor instance was released! Stopping...")
                     context.system.personalDeadLetters(type: InvocationMessage.self, recipient: context.id).tell(message)
@@ -58,6 +60,7 @@ enum InvocationBehavior {
 
                 if let terminated = signal as? _Signals.Terminated {
                     if let watcher = instance as? (any LifecycleWatch) {
+                        nonisolated(unsafe) let watcher = watcher
                         Task {
                             await watcher.whenLocal { __secretlyKnownToBeLocalK in
                                 let __secretlyKnownToBeLocal: any LifecycleWatch = __secretlyKnownToBeLocalK

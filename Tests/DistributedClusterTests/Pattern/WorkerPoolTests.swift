@@ -46,7 +46,7 @@ final class WorkerPoolTests: SingleClusterSystemXCTestCase {
         let finished = expectation(description: "all workers available")
         Task {
             while true {
-                if try await workers.size == workerProbes.count {
+                if (await workers.whenLocal { $0.size } ?? 0) == workerProbes.count {
                     break
                 }
                 try await Task.sleep(nanoseconds: 100_000_000)
@@ -93,7 +93,7 @@ final class WorkerPoolTests: SingleClusterSystemXCTestCase {
         let finished = expectation(description: "all workers available")
         Task {
             while true {
-                if try await workers.size == workerProbes.count {
+                if (await workers.whenLocal { $0.size } ?? 0) == workerProbes.count {
                     break
                 }
                 try await Task.sleep(nanoseconds: 100_000_000)
@@ -276,7 +276,7 @@ final class WorkerPoolTests: SingleClusterSystemXCTestCase {
         let finished = expectation(description: "all workers available")
         Task {
             while true {
-                if try await workers.size == workerProbes.count {
+                if (await workers.whenLocal { $0.size } ?? 0) == workerProbes.count {
                     break
                 }
                 try await Task.sleep(nanoseconds: 100_000_000)

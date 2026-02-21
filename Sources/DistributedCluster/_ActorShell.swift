@@ -29,7 +29,9 @@ import NIO
 ///
 /// The shell is mutable, and full of dangerous and carefully threaded/ordered code, be extra cautious.
 // TODO: remove this and replace by the infrastructure which is now Swift's `actor`
-public final class _ActorShell<Message: Codable>: _ActorContext<Message>, AbstractShellProtocol {
+// @unchecked Sendable: Legacy C mailbox runtime. This type is planned for removal
+// when _ActorShell is replaced with Swift's native actor runtime. See GitHub issue #5.
+public final class _ActorShell<Message: Codable>: _ActorContext<Message>, AbstractShellProtocol, @unchecked Sendable {
     // The phrase that "actor change their behavior" can be understood quite literally;
     // On each message interpretation the actor may return a new behavior that will be handling the next message.
     @usableFromInline
@@ -510,6 +512,7 @@ public final class _ActorShell<Message: Codable>: _ActorContext<Message>, Abstra
     internal func interpretResume(_ result: Result<Any, Error>) throws -> ActorRunResult {
         switch self.behavior.underlying {
         case .suspended(let previousBehavior, let handler):
+            nonisolated(unsafe) let result = result
             let next = try self.supervisor.interpretSupervised(target: previousBehavior, context: self) {
                 try handler(result)
             }

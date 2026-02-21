@@ -54,7 +54,9 @@ enum Gossiper {
 // MARK: GossiperControl
 
 /// Control object used to modify and interact with a spawned `Gossiper<Gossip, Acknowledgement>`.
-struct GossiperControl<Gossip: Codable, Acknowledgement: Codable> {
+// @unchecked Sendable: Contains _ActorRef which is Sendable, but generic constraints prevent
+// the compiler from proving it. Phase 3: add Sendable constraints to Gossip/Acknowledgement.
+struct GossiperControl<Gossip: Codable, Acknowledgement: Codable>: @unchecked Sendable {
     /// Internal FOR TESTING ONLY.
     internal let ref: GossipShell<Gossip, Acknowledgement>.Ref
 
@@ -99,7 +101,9 @@ protocol GossipIdentifier {
     var asAnyGossipIdentifier: AnyGossipIdentifier { get }
 }
 
-struct AnyGossipIdentifier: Hashable, GossipIdentifier {
+// @unchecked Sendable: Wraps a GossipIdentifier protocol value. All known implementations
+// (StringGossipIdentifier) are value types with Sendable properties.
+struct AnyGossipIdentifier: Hashable, GossipIdentifier, @unchecked Sendable {
     let underlying: GossipIdentifier
 
     init(_ id: String) {
@@ -131,7 +135,7 @@ struct AnyGossipIdentifier: Hashable, GossipIdentifier {
     }
 }
 
-struct StringGossipIdentifier: GossipIdentifier, Hashable, ExpressibleByStringLiteral, CustomStringConvertible {
+struct StringGossipIdentifier: GossipIdentifier, Hashable, ExpressibleByStringLiteral, CustomStringConvertible, Sendable {
     let gossipIdentifier: String
 
     init(_ gossipIdentifier: StringLiteralType) {

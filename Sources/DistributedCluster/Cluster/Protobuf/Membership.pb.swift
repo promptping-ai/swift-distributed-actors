@@ -68,7 +68,7 @@ public enum _ProtoClusterMemberReachability: SwiftProtobuf.Enum {
 
 extension _ProtoClusterMemberReachability: CaseIterable {
     // The compiler won't synthesize support with the UNRECOGNIZED case.
-    public static var allCases: [_ProtoClusterMemberReachability] = [
+    public static let allCases: [_ProtoClusterMemberReachability] = [
         .unspecified,
         .reachable,
         .unreachable,
@@ -121,7 +121,7 @@ public enum _ProtoClusterMemberStatus: SwiftProtobuf.Enum {
 
 extension _ProtoClusterMemberStatus: CaseIterable {
     // The compiler won't synthesize support with the UNRECOGNIZED case.
-    public static var allCases: [_ProtoClusterMemberStatus] = [
+    public static let allCases: [_ProtoClusterMemberStatus] = [
         .unspecified,
         .joining,
         .up,
@@ -300,11 +300,11 @@ extension _ProtoClusterMembership: SwiftProtobuf.Message, SwiftProtobuf._Message
         2: .same(proto: "leaderNode"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _members: [_ProtoClusterMember] = []
         var _leaderNode: _ProtoClusterNode? = nil
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -371,13 +371,13 @@ extension _ProtoClusterMember: SwiftProtobuf.Message, SwiftProtobuf._MessageImpl
         4: .same(proto: "upNumber"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _node: _ProtoClusterNode? = nil
         var _status: _ProtoClusterMemberStatus = .unspecified
         var _reachability: _ProtoClusterMemberReachability = .unspecified
         var _upNumber: UInt32 = 0
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -455,12 +455,12 @@ extension _ProtoClusterMembershipGossip: SwiftProtobuf.Message, SwiftProtobuf._M
         3: .same(proto: "seenTable"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _membership: _ProtoClusterMembership? = nil
         var _ownerClusterNodeID: UInt64 = 0
         var _seenTable: _ProtoClusterMembershipSeenTable? = nil
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -560,11 +560,11 @@ extension _ProtoClusterMembershipSeenTableRow: SwiftProtobuf.Message, SwiftProto
         2: .same(proto: "version"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _nodeID: UInt64 = 0
         var _version: _ProtoVersionVector? = nil
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 

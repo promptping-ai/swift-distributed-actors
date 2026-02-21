@@ -16,7 +16,7 @@ import SWIM
 
 extension Serialization {
     /// Used to identify a type (or instance) of a `Serializer`.
-    public struct SerializerID: ExpressibleByIntegerLiteral, Hashable, Comparable, CustomStringConvertible {
+    public struct SerializerID: ExpressibleByIntegerLiteral, Hashable, Comparable, CustomStringConvertible, Sendable {
         public typealias IntegerLiteralType = UInt32
 
         public let value: UInt32
@@ -93,7 +93,7 @@ extension Serialization {
     ///
     /// Those messages are usually serialized using specialized serializers rather than the generic catch all Codable infrastructure,
     /// in order to allow fine grained evolution and payload size savings.
-    enum ReservedID {
+    enum ReservedID: Sendable {
         internal static let SystemMessage: SerializerID = .doNotSerialize
         internal static let SystemMessageACK: SerializerID = ._checkProtobufRepresentable(_SystemMessage.ACK.self)
         internal static let SystemMessageNACK: SerializerID = ._checkProtobufRepresentable(_SystemMessage.NACK.self)

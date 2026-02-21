@@ -18,7 +18,8 @@ import Logging
 // ==== ----------------------------------------------------------------------------------------------------------------
 // MARK: Cluster (OpLog) Receptionist
 
-public final class _OperationLogClusterReceptionist {
+// @unchecked Sendable: Mutable state is only accessed from within the actor's mailbox run (single-threaded).
+public final class _OperationLogClusterReceptionist: @unchecked Sendable {
     typealias Message = Receptionist.Message
     typealias ReceptionistRef = _ActorRef<Message>
 
@@ -93,6 +94,7 @@ public final class _OperationLogClusterReceptionist {
 
     var behavior: _Behavior<Message> {
         .setup { context in
+            nonisolated(unsafe) let context = context
             context.log.debug("Initialized receptionist")
 
             // === listen to cluster events ------------------
@@ -673,7 +675,7 @@ extension _OperationLogClusterReceptionist {
 extension _OperationLogClusterReceptionist {
     /// Confirms that the remote peer receptionist has received Ops up until the given element,
     /// allows us to push more elements
-    class PushOps: Receptionist.Message {
+    class PushOps: Receptionist.Message, @unchecked Sendable {
         // the "sender" of the push
         let peer: _ActorRef<Receptionist.Message>
 
@@ -724,7 +726,7 @@ extension _OperationLogClusterReceptionist {
 
     /// Confirms that the remote peer receptionist has received Ops up until the given element,
     /// allows us to push more elements
-    class AckOps: Receptionist.Message, CustomStringConvertible {
+    class AckOps: Receptionist.Message, CustomStringConvertible, @unchecked Sendable {
         /// Cumulative ACK of all ops until (and including) this one.
         ///
         /// If a recipient has more ops than the `confirmedUntil` confirms seeing, it shall offer
@@ -775,7 +777,7 @@ extension _OperationLogClusterReceptionist {
         }
     }
 
-    class PeriodicAckTick: Receptionist.Message, _NotActuallyCodableMessage, CustomStringConvertible {
+    class PeriodicAckTick: Receptionist.Message, _NotActuallyCodableMessage, CustomStringConvertible, @unchecked Sendable {
         override init() {
             super.init()
         }
@@ -789,7 +791,7 @@ extension _OperationLogClusterReceptionist {
         }
     }
 
-    class PublishLocalListingsTrigger: Receptionist.Message, _NotActuallyCodableMessage, CustomStringConvertible {
+    class PublishLocalListingsTrigger: Receptionist.Message, _NotActuallyCodableMessage, CustomStringConvertible, @unchecked Sendable {
         override init() {
             super.init()
         }

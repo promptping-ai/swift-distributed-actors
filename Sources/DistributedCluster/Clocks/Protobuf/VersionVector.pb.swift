@@ -228,11 +228,11 @@ extension _ProtoActorIdentity: SwiftProtobuf.Message, SwiftProtobuf._MessageImpl
         2: .same(proto: "payload"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _manifest: _ProtoManifest? = nil
         var _payload: Data = SwiftProtobuf.Internal.emptyData
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -298,10 +298,10 @@ extension _ProtoVersionReplicaID: SwiftProtobuf.Message, SwiftProtobuf._MessageI
         3: .same(proto: "nodeID"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _value: _ProtoVersionReplicaID.OneOf_Value?
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -386,11 +386,11 @@ extension _ProtoReplicaVersion: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
         2: .same(proto: "version"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _replicaID: _ProtoVersionReplicaID? = nil
         var _version: UInt64 = 0
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -484,11 +484,11 @@ extension _ProtoVersionDot: SwiftProtobuf.Message, SwiftProtobuf._MessageImpleme
         2: .same(proto: "version"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _replicaID: _ProtoVersionReplicaID? = nil
         var _version: UInt64 = 0
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -554,12 +554,12 @@ extension _ProtoVersionDottedElementEnvelope: SwiftProtobuf.Message, SwiftProtob
         3: .same(proto: "payload"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _dot: _ProtoVersionDot? = nil
         var _manifest: _ProtoManifest? = nil
         var _payload: Data = SwiftProtobuf.Internal.emptyData
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 

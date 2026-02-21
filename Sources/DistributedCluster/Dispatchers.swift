@@ -107,8 +107,11 @@ internal struct DispatchQueueDispatcher: MessageDispatcher {
     }
 
     func execute(_ f: @escaping () -> Void) {
+        // Safety: f is always invoked on this DispatchQueue's thread.
+        struct SendableBox: @unchecked Sendable { let f: () -> Void }
+        let box = SendableBox(f: f)
         self.queue.async {
-            f()
+            box.f()
         }
     }
 }

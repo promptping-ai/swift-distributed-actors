@@ -166,10 +166,10 @@ extension _ProtoClusterEvent: SwiftProtobuf.Message, SwiftProtobuf._MessageImple
         3: .same(proto: "leadershipChange"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _event: _ProtoClusterEvent.OneOf_Event?
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -258,12 +258,12 @@ extension _ProtoClusterMembershipChange: SwiftProtobuf.Message, SwiftProtobuf._M
         3: .same(proto: "toStatus"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _node: _ProtoClusterNode? = nil
         var _fromStatus: _ProtoClusterMemberStatus = .unspecified
         var _toStatus: _ProtoClusterMemberStatus = .unspecified
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -334,11 +334,11 @@ extension _ProtoClusterLeadershipChange: SwiftProtobuf.Message, SwiftProtobuf._M
         2: .same(proto: "newLeader"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _oldLeader: _ProtoClusterMember? = nil
         var _newLeader: _ProtoClusterMember? = nil
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 

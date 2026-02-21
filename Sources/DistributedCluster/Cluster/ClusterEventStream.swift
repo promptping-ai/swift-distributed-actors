@@ -20,7 +20,8 @@ import Logging
 /// constructs. Subscribers will be watched and removed in case they terminate.
 ///
 /// `ClusterEventStream` is only meant to be used locally and does not buffer or redeliver messages.
-public struct ClusterEventStream: AsyncSequence {
+// @unchecked Sendable: only stored property is ClusterEventStreamActor? (distributed actor = Sendable).
+public struct ClusterEventStream: AsyncSequence, @unchecked Sendable {
     public typealias Element = Cluster.Event
 
     private let actor: ClusterEventStreamActor?
@@ -38,6 +39,7 @@ public struct ClusterEventStream: AsyncSequence {
     }
 
     nonisolated func subscribe(_ ref: _ActorRef<Cluster.Event>, file: String = #filePath, line: UInt = #line) {
+        // All captured values are Sendable (self is @unchecked Sendable struct, ref is @unchecked Sendable).
         Task {
             await self._subscribe(ref, file: file, line: line)
         }
@@ -68,6 +70,7 @@ public struct ClusterEventStream: AsyncSequence {
     private func subscribe(_ oid: ObjectIdentifier, eventHandler: @escaping (Cluster.Event) -> Void) async {
         guard let actor = self.actor else { return }
 
+        nonisolated(unsafe) let eventHandler = eventHandler
         await actor.whenLocal { __secretlyKnownToBeLocal in  // TODO(distributed): this is annoying, we must track "known to be local" in typesystem instead
             __secretlyKnownToBeLocal.subscribe(oid, eventHandler: eventHandler)
         }
@@ -97,6 +100,8 @@ public struct ClusterEventStream: AsyncSequence {
         var underlying: AsyncStream<Cluster.Event>.Iterator!
 
         init(_ eventStream: ClusterEventStream) {
+            // ObjectIdentifier, ClusterEventStream (Sendable), and AsyncStream.Continuation (Sendable)
+            // are all safe to capture in Task and @Sendable closures without nonisolated(unsafe).
             let id = ObjectIdentifier(self)
             self.underlying = AsyncStream<Cluster.Event> { continuation in
                 Task {

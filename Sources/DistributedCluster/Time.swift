@@ -78,7 +78,7 @@ extension Duration {
 
     /// Largest time amount expressible using this type.
     /// Roughly equivalent to 292 years, which for the intents and purposes of this type can serve as "infinite".
-    static var effectivelyInfinite: Duration = .nanoseconds(Value.max)
+    static let effectivelyInfinite: Duration = .nanoseconds(Value.max)
 }
 
 extension Duration: CustomPrettyStringConvertible {

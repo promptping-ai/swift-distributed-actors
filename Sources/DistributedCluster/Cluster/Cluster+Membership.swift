@@ -694,8 +694,11 @@ extension MembershipDiff: CustomDebugStringConvertible {
 // MARK: Errors
 
 extension Cluster {
-    public struct MembershipError: Error, CustomStringConvertible {
-        internal enum _MembershipError: CustomPrettyStringConvertible {
+    // @unchecked Sendable: _Storage is a class with let-only properties — @unchecked justified.
+    public struct MembershipError: Error, CustomStringConvertible, @unchecked Sendable {
+        // @unchecked Sendable: .awaitStatusTimedOut captures Error? which may not conform to Sendable,
+        // but the enum is frozen at construction time and never mutated.
+        internal enum _MembershipError: @unchecked Sendable, CustomPrettyStringConvertible {
             case nonMemberLeaderSelected(Cluster.Membership, wannabeLeader: Cluster.Member)
             case notFound(Cluster.Node, in: Cluster.Membership)
             case notFoundAny(Cluster.Endpoint, in: Cluster.Membership)
@@ -732,7 +735,8 @@ extension Cluster {
             }
         }
 
-        internal class _Storage {
+        // @unchecked Sendable: Class with let-only properties — @unchecked justified.
+        internal class _Storage: @unchecked Sendable {
             let error: _MembershipError
             let file: String
             let line: UInt

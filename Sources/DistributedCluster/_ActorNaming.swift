@@ -58,22 +58,22 @@ extension _ActorNaming {
 
 extension _ActorNaming {
     /// Special naming scheme applied to `ask` actors.
-    static var ask: _ActorNaming = .init(unchecked: .prefixed(prefix: "$ask", suffixScheme: .letters))
+    static let ask: _ActorNaming = .init(unchecked: .prefixed(prefix: "$ask", suffixScheme: .letters))
 
     /// Naming for adapters (`context.messageAdapter`)
     static let adapter: _ActorNaming = .init(unchecked: .unique("$messageAdapter"))
 }
 
 /// Used while spawning actors to identify how its name should be created.
-public struct _ActorNaming: ExpressibleByStringLiteral, ExpressibleByStringInterpolation, Hashable {
+public struct _ActorNaming: ExpressibleByStringLiteral, ExpressibleByStringInterpolation, Hashable, Sendable {
     // We keep an internal enum, but do not expose it as we may want to add more naming strategies in the future?
-    internal enum _Naming: Hashable {
+    internal enum _Naming: Hashable, Sendable {
         case unique(String)
         // case uniqueNumeric(NumberingScheme)
         case prefixed(prefix: String, suffixScheme: SuffixScheme)
     }
 
-    internal enum SuffixScheme {
+    internal enum SuffixScheme: Sendable {
         /// Scheme optimized for sequential related to each other entities, such as workers, or process identifiers.
         /// resulting in sequential numeric values: `1, 2, 3, ..., 9, 10, 11, 12, ...`
         ///

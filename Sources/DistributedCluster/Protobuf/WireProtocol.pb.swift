@@ -348,12 +348,12 @@ extension _ProtoHandshakeOffer: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
         3: .same(proto: "targetEndpoint"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _version: _ProtoProtocolVersion? = nil
         var _originNode: _ProtoClusterNode? = nil
         var _targetEndpoint: _ProtoClusterEndpoint? = nil
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -424,10 +424,10 @@ extension _ProtoHandshakeResponse: SwiftProtobuf.Message, SwiftProtobuf._Message
         2: .same(proto: "reject"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _status: _ProtoHandshakeResponse.OneOf_Status?
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -506,12 +506,12 @@ extension _ProtoHandshakeAccept: SwiftProtobuf.Message, SwiftProtobuf._MessageIm
         3: .same(proto: "targetNode"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _version: _ProtoProtocolVersion? = nil
         var _originNode: _ProtoClusterNode? = nil
         var _targetNode: _ProtoClusterNode? = nil
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -584,13 +584,13 @@ extension _ProtoHandshakeReject: SwiftProtobuf.Message, SwiftProtobuf._MessageIm
         4: .same(proto: "reason"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _version: _ProtoProtocolVersion? = nil
         var _originNode: _ProtoClusterNode? = nil
         var _targetNode: _ProtoClusterNode? = nil
         var _reason: String = String()
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -668,12 +668,12 @@ extension _ProtoEnvelope: SwiftProtobuf.Message, SwiftProtobuf._MessageImplement
         3: .same(proto: "payload"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _recipient: _ProtoActorID? = nil
         var _manifest: _ProtoManifest? = nil
         var _payload: Data = SwiftProtobuf.Internal.emptyData
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -746,13 +746,13 @@ extension _ProtoSystemEnvelope: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
         4: .same(proto: "payload"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _sequenceNr: UInt64 = 0
         var _from: _ProtoClusterNode? = nil
         var _manifest: _ProtoManifest? = nil
         var _payload: Data = SwiftProtobuf.Internal.emptyData
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -829,11 +829,11 @@ extension _ProtoSystemAck: SwiftProtobuf.Message, SwiftProtobuf._MessageImplemen
         2: .same(proto: "from"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _sequenceNr: UInt64 = 0
         var _from: _ProtoClusterNode? = nil
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 

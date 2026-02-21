@@ -1,0 +1,88 @@
+name: Claude Code Review
+
+# Triggers on @claude mentions in PR comments and reviews
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+# Prevent multiple Claude jobs from running simultaneously on the same PR
+concurrency:
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  claude:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude'))
+    runs-on: [self-hosted, light]
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Resolve executable paths
+        id: paths
+        run: |
+          CLAUDE_LOCATIONS=(
+            "$HOME/.local/bin/claude"
+            "/Users/stijnwillems/.local/bin/claude"
+            "/Users/$(whoami)/.local/bin/claude"
+          )
+          for loc in "${CLAUDE_LOCATIONS[@]}"; do
+            if [ -x "$loc" ]; then
+              CLAUDE_PATH="$loc"
+              break
+            fi
+          done
+          if [ -z "$CLAUDE_PATH" ] && command -v claude >/dev/null 2>&1; then
+            CLAUDE_PATH="$(command -v claude)"
+          fi
+          if [ -z "$CLAUDE_PATH" ]; then
+            echo "::error::Claude Code not found"
+            exit 1
+          fi
+          echo "claude_path=$CLAUDE_PATH" >> "$GITHUB_OUTPUT"
+
+          BUN_LOCATIONS=(
+            "$HOME/.bun/bin/bun"
+            "/Users/stijnwillems/.bun/bin/bun"
+            "/Users/$(whoami)/.bun/bin/bun"
+          )
+          for loc in "${BUN_LOCATIONS[@]}"; do
+            if [ -x "$loc" ]; then
+              echo "bun_path=$loc" >> "$GITHUB_OUTPUT"
+              break
+            fi
+          done
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          path_to_claude_code_executable: ${{ steps.paths.outputs.claude_path }}
+          path_to_bun_executable: ${{ steps.paths.outputs.bun_path }}
+          use_sticky_comment: true
+          claude_args: |
+            --max-turns 25
+            --model claude-sonnet-4-20250514
+            --setting-sources project,local
+            --system-prompt "You are reviewing Swift 6 concurrency migration code for swift-distributed-actors. Focus on:
+            1. Correct use of @unchecked Sendable - must have documented lock discipline
+            2. nonisolated(unsafe) captures - verify runtime safety in actor mailbox context
+            3. @Sendable closures - ensure no mutable state capture without synchronization
+            4. Static property thread safety - nonisolated(unsafe) for truly immutable defaults
+            5. No silent failures in error handling paths
+            6. Verify Sendable conformances are correct (all stored properties must be Sendable)
+            7. Flag any data race potential introduced by the migration"
