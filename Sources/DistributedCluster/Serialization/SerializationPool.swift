@@ -28,7 +28,12 @@ import NIO
 /// (e.g. system) messages.
 ///
 // TODO: This should be internal, but is forced to be public by `_deserializeDeliver` on references.
-public final class _SerializationPool {
+// Phase 2: AffinityThreadPool is not Sendable. It needs either @unchecked Sendable conformance
+// (it is internally thread-safe via a work queue) or replacement with Swift structured concurrency
+// before _SerializationPool can use Swift 6 strict concurrency checking.
+// _SerializationPool is @unchecked Sendable: workerMapping is set only during init and never mutated after;
+// AffinityThreadPool is internally thread-safe.
+public final class _SerializationPool: @unchecked Sendable {
     @usableFromInline
     internal let serialization: Serialization
     @usableFromInline
@@ -124,7 +129,7 @@ public final class _SerializationPool {
         recipientPath: ActorPath,
         promise: EventLoopPromise<Message>,
         workerPool: AffinityThreadPool,
-        task: @escaping () throws -> Message
+        task: @escaping @Sendable () throws -> Message
     ) {
         self.enqueue(recipientPath: recipientPath, onComplete: promise.completeWith, workerPool: workerPool, task: { try task() })
     }
@@ -133,9 +138,9 @@ public final class _SerializationPool {
     @usableFromInline
     internal func enqueue<Message>(
         recipientPath: ActorPath,
-        onComplete: @escaping (Result<Message, Error>) -> Void,
+        onComplete: @escaping @Sendable (Result<Message, Error>) -> Void,
         workerPool: AffinityThreadPool,
-        task: @escaping () throws -> Message
+        task: @escaping @Sendable () throws -> Message
     ) {
         // TODO: also record thr delay between submitting and starting serialization work here?
         do {
@@ -174,9 +179,9 @@ final class DeserializationCallback {
     }
 
     @usableFromInline
-    let call: (Result<DeserializedMessage, Error>) -> Void
+    let call: @Sendable (Result<DeserializedMessage, Error>) -> Void
 
-    init(_ callback: @escaping (Result<DeserializedMessage, Error>) -> Void) {
+    init(_ callback: @escaping @Sendable (Result<DeserializedMessage, Error>) -> Void) {
         self.call = callback
     }
 }

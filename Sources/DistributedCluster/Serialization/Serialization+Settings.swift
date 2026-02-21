@@ -74,7 +74,7 @@ extension Serialization {
         ///
         /// E.g. protocol buffer based serializers.
         internal var specializedSerializerMakers: [Manifest: SerializerMaker] = [:]
-        typealias SerializerMaker = (NIO.ByteBufferAllocator) -> AnySerializer
+        typealias SerializerMaker = @Sendable (NIO.ByteBufferAllocator) -> AnySerializer
 
         internal var typeToManifestRegistry: [SerializerTypeKey: Serialization.Manifest] = [:]
         internal var manifest2TypeRegistry: [Manifest: Any.Type] = [:]
@@ -170,7 +170,7 @@ extension Serialization.Settings {
         _ type: Message.Type,
         hint hintOverride: String? = nil,
         serializerID: SerializerID,
-        makeSerializer: @escaping (NIO.ByteBufferAllocator) -> Serializer<Message>
+        makeSerializer: @escaping @Sendable (NIO.ByteBufferAllocator) -> Serializer<Message>
     ) {
         precondition(
             serializerID == .specializedWithTypeHint || serializerID > 16,
