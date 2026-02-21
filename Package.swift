@@ -180,7 +180,7 @@ var targets: [PackageDescription.Target] = [
         exclude: [
             "README.md"
         ],
-        swiftSettings: [.swiftLanguageMode(.v5)]
+        swiftSettings: [.swiftLanguageMode(.v6)]
     ),
 ]
 
