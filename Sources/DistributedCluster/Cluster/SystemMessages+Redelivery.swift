@@ -115,7 +115,8 @@ extension _SystemMessage {
 // ==== ----------------------------------------------------------------------------------------------------------------
 // MARK: Outbound Re-Delivery
 
-internal final class OutboundSystemMessageRedelivery {
+// @unchecked Sendable: Only accessed from within the NIO channel pipeline (single-threaded).
+internal final class OutboundSystemMessageRedelivery: @unchecked Sendable {
     typealias ACK = _SystemMessage.ACK
     typealias NACK = _SystemMessage.NACK
     typealias SequenceNr = SystemMessageEnvelope.SequenceNr
@@ -284,7 +285,8 @@ struct GiveUpRedeliveringSystemMessagesError: Error {}
 
 /// Each association has one inbound system message queue.
 @usableFromInline
-internal class InboundSystemMessages {
+// @unchecked Sendable: Only accessed from within the NIO channel pipeline (single-threaded).
+internal class InboundSystemMessages: @unchecked Sendable {
     typealias ACK = _SystemMessage.ACK
     typealias NACK = _SystemMessage.NACK
     typealias SequenceNr = SystemMessageEnvelope.SequenceNr
@@ -349,7 +351,7 @@ extension InboundSystemMessages.InboundSystemMessageArrivalDirective {
 // ==== ----------------------------------------------------------------------------------------------------------------
 // MARK: Settings
 
-public struct OutboundSystemMessageRedeliverySettings {
+public struct OutboundSystemMessageRedeliverySettings: Sendable {
     public static let `default`: OutboundSystemMessageRedeliverySettings = .init()
 
     /// When enabled, logs all outbound messages using the tracelog facility.
@@ -380,7 +382,7 @@ public struct OutboundSystemMessageRedeliverySettings {
     // var maxRedeliveryTicksWithoutACK = 10_000 // TODO settings
 }
 
-public struct InboundSystemMessageRedeliverySettings {
+public struct InboundSystemMessageRedeliverySettings: Sendable {
     public static let `default` = InboundSystemMessageRedeliverySettings()
 
     /// When enabled, logs all outbound messages using the tracelog facility.

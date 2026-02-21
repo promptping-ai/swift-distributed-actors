@@ -31,7 +31,8 @@ import NIO
 /// Actor which is notified automatically when a remote actor is `context.watch()`-ed.
 ///
 /// Allows manually mocking membership changes to trigger terminated notifications.
-internal final class NodeDeathWatcherInstance: NodeDeathWatcher {
+// @unchecked Sendable: Mutable state is only accessed from within the enclosing actor's mailbox run (single-threaded).
+internal final class NodeDeathWatcherInstance: NodeDeathWatcher, @unchecked Sendable {
     private let selfNode: Cluster.Node
     private var membership: Cluster.Membership
 
@@ -191,6 +192,7 @@ enum NodeDeathWatcherShell {
     // FIXME: death watcher is incomplete, should handle snapshot!!
     static func behavior(clusterEvents: ClusterEventStream) -> _Behavior<Message> {
         .setup { context in
+            nonisolated(unsafe) let context = context
             let instance = NodeDeathWatcherInstance(selfNode: context.system.settings.bindNode)
 
             let onClusterEventRef = context.subReceive(Cluster.Event.self) { event in

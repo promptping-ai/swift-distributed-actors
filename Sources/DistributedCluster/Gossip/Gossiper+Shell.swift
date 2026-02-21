@@ -17,7 +17,9 @@ import Logging
 private let gossipTickKey: _TimerKey = "gossip-tick"
 
 /// Not intended to be spawned directly, use `Gossiper.spawn` instead!
-internal final class GossipShell<Gossip: Codable, Acknowledgement: Codable> {
+// @unchecked Sendable: Mutable state is only accessed from within the actor's mailbox run.
+// Phase 3: verify single-threaded access pattern before removing @unchecked.
+internal final class GossipShell<Gossip: Codable, Acknowledgement: Codable>: @unchecked Sendable {
     typealias Ref = _ActorRef<Message>
 
     let settings: Gossiper.Settings
@@ -46,6 +48,7 @@ internal final class GossipShell<Gossip: Codable, Acknowledgement: Codable> {
 
     var behavior: _Behavior<Message> {
         .setup { context in
+            nonisolated(unsafe) let context = context
             self.ensureNextGossipRound(context)
             self.initPeerDiscovery(context)
 
@@ -233,13 +236,14 @@ internal final class GossipShell<Gossip: Codable, Acknowledgement: Codable> {
                     continue
                 }
 
+                nonisolated(unsafe) let unsafeGossip = gossip
                 self.sendGossip(
                     context,
                     identifier: identifier,
                     gossip,
                     to: selectedRef,
                     onGossipAck: { ack in
-                        logic.receiveAcknowledgement(ack, from: selectedPeer, confirming: gossip)
+                        logic.receiveAcknowledgement(ack, from: selectedPeer, confirming: unsafeGossip)
                     }
                 )
             }
@@ -254,7 +258,7 @@ internal final class GossipShell<Gossip: Codable, Acknowledgement: Codable> {
         identifier: AnyGossipIdentifier,
         _ payload: Gossip,
         to target: PeerRef,
-        onGossipAck: @escaping (Acknowledgement) -> Void
+        onGossipAck: @escaping @Sendable (Acknowledgement) -> Void
     ) {
         context.log.trace(
             "Sending gossip to \(target.id)",
@@ -323,7 +327,8 @@ extension GossipShell {
             return  // nothing to do, peers will be introduced manually
 
         case .onClusterMember(let atLeastStatus, let resolvePeerOn):
-            func resolveInsertPeer(_ context: _ActorContext<Message>, member: Cluster.Member) {
+            nonisolated(unsafe) let resolvePeerOn = resolvePeerOn
+            @Sendable func resolveInsertPeer(_ context: _ActorContext<Message>, member: Cluster.Member) {
                 guard member.node != context.system.cluster.node else {
                     return  // ignore self node
                 }

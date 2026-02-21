@@ -84,24 +84,31 @@ public distributed actor WorkerPool<Worker: DistributedWorker>: DistributedWorke
 
         switch settings.selector.underlying {
         case .dynamic(let key):
+            // nonisolated(unsafe): during distributed actor init, 'self' is in the actor's region,
+            // making the Task closure non-sending. The nonisolated binding places it outside the
+            // actor region so the Sendable distributed actor reference can be captured @sending.
+            // State access goes through whenLocal for proper distributed actor isolation.
+            nonisolated(unsafe) let selfRef = self
             self.newWorkersSubscribeTask = Task {
-                for await worker in await self.actorSystem.receptionist.listing(of: key) {
-                    self.workers.append(WeakLocalRef(worker))
+                for await worker in await selfRef.actorSystem.receptionist.listing(of: key) {
+                    await selfRef.whenLocal { myself in
+                        myself.workers.append(WeakLocalRef(worker))
 
-                    // Notify those waiting for new worker
-                    log.log(
-                        level: self.logLevel,
-                        "Updated workers for \(key)",
-                        metadata: [
-                            "workers": "\(self.workers)",
-                            "newWorkerContinuations": "\(self.newWorkerContinuations.count)",
-                        ]
-                    )
-                    for (i, continuation) in self.newWorkerContinuations.enumerated().reversed() {
-                        continuation.resume()
-                        self.newWorkerContinuations.remove(at: i)
+                        // Notify those waiting for new worker
+                        myself.log.log(
+                            level: myself.logLevel,
+                            "Updated workers for \(key)",
+                            metadata: [
+                                "workers": "\(myself.workers)",
+                                "newWorkerContinuations": "\(myself.newWorkerContinuations.count)",
+                            ]
+                        )
+                        for (i, continuation) in myself.newWorkerContinuations.enumerated().reversed() {
+                            continuation.resume()
+                            myself.newWorkerContinuations.remove(at: i)
+                        }
+                        myself.watchTermination(of: worker)
                     }
-                    watchTermination(of: worker)
                 }
             }
         case .static(let workers):
@@ -138,7 +145,12 @@ public distributed actor WorkerPool<Worker: DistributedWorker>: DistributedWorke
         return try await worker.submit(work: work)
     }
 
-    internal distributed var size: Int {
+    // Was `distributed var` but triggers a Swift compiler ICE ("symbol in IR but not
+    // in TBD file") in Swift 6.0. Safe to keep as a plain actor property because:
+    //  - Inside the module: accessed directly as an actor-isolated property.
+    //  - In tests (DistributedClusterTests): accessed via `whenLocal { $0.size }` to
+    //    satisfy Swift 6.1+ strict isolation rules without needing `distributed var`.
+    internal var size: Int {
         self.workers.count
     }
 
@@ -152,17 +164,42 @@ public distributed actor WorkerPool<Worker: DistributedWorker>: DistributedWorke
                 (true, .awaitNewWorkers):
                 self.log.log(level: self.logLevel, "Worker pool is empty, waiting for new worker.")
 
-                try await _withClusterCancellableCheckedContinuation(of: Void.self) { cccc in
-                    self.newWorkerContinuations.append(cccc)
-                    let log = self.log
-                    cccc.onCancel { cccc in
-                        log.debug("Member selection was cancelled, call probably timed-out, schedule removal of continuation")
-                        cccc.resume(throwing: CancellationError())
-                        Task {
-                            await self.removeWorkerWaitContinuation(cccc)
-                        }
+                // Access actor-isolated state synchronously here, before any async
+                // boundary. Swift 6's region-based 'sending' analysis prevents closures
+                // that capture actor-isolated state from being passed to async functions
+                // like withTaskCancellationHandler / withCheckedThrowingContinuation.
+                // By pre-accessing actor state before the async calls, the operation
+                // and continuation closures below only capture cccc
+                // (ClusterCancellableCheckedContinuation is @unchecked Sendable),
+                // breaking the self-isolation chain.
+                let cccc = ClusterCancellableCheckedContinuation<Void>()
+                let log = self.log  // Logger: Sendable
+                self.newWorkerContinuations.append(cccc)
+                cccc.onCancel { [cccc] c in
+                    log.debug(
+                        "Member selection was cancelled, call probably timed-out, schedule removal of continuation"
+                    )
+                    c.resume(throwing: CancellationError())
+                    Task {
+                        await self.removeWorkerWaitContinuation(c)
                     }
                 }
+                // nonisolated(unsafe): captures only cccc (@unchecked Sendable), not
+                // any actor-isolated state. Required to prevent Swift 6 from treating
+                // the closure as 'self-isolated' simply because it is defined inside an
+                // actor method.
+                nonisolated(unsafe) let operation: () async throws -> Void = {
+                    try await withCheckedThrowingContinuation {
+                        (continuation: CheckedContinuation<Void, any Error>) in
+                        _ = cccc.setContinuation(continuation)
+                    }
+                }
+                try await withTaskCancellationHandler(
+                    operation: operation,
+                    onCancel: {
+                        cccc.cancel()
+                    }
+                )
             case (true, .throw(let error)):
                 throw error
             }
@@ -293,8 +330,9 @@ extension WorkerPool {
 // ==== ----------------------------------------------------------------------------------------------------------------
 // MARK: WorkerPool Errors
 
-public struct WorkerPoolError: Error, CustomStringConvertible {
-    internal enum _WorkerPoolError {
+// @unchecked Sendable: _Storage is a class but is immutable after init (all let bindings).
+public struct WorkerPoolError: Error, CustomStringConvertible, @unchecked Sendable {
+    internal enum _WorkerPoolError: Sendable {
         // --- runtime errors
         case staticPoolExhausted(String)
 
@@ -303,7 +341,8 @@ public struct WorkerPoolError: Error, CustomStringConvertible {
         case illegalAwaitNewWorkersForStaticPoolConfigured(String)
     }
 
-    internal class _Storage {
+    // @unchecked Sendable: all stored properties are immutable after init (let bindings).
+    internal class _Storage: @unchecked Sendable {
         let error: _WorkerPoolError
         let file: String
         let line: UInt

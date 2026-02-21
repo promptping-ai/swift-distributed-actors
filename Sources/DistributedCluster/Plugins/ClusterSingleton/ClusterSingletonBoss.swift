@@ -18,6 +18,13 @@ import Logging
 import struct Foundation.Data
 import struct Foundation.UUID
 
+/// Box to bridge non-Sendable values across isolation boundaries where safety is
+/// guaranteed by the runtime (e.g., `whenLocal` on a known-local distributed actor).
+internal struct UnsafeSendableBox<T>: @unchecked Sendable {
+    let value: T
+    init(_ value: T) { self.value = value }
+}
+
 // ==== ----------------------------------------------------------------------------------------------------------------
 // MARK: Cluster singleton boss
 
@@ -117,7 +124,10 @@ internal distributed actor ClusterSingletonBoss<Act: ClusterSingleton>: ClusterS
     private func receiveClusterEvent(_ event: Cluster.Event) async throws {
         // Feed the event to `AllocationStrategy` then forward the result to `updateTargetNode`,
         // which will determine if `targetNode` has changed and react accordingly.
-        let node = await self.allocationStrategy.onClusterEvent(event)
+        // nonisolated(unsafe): allocationStrategy protocol is not Sendable but is only accessed
+        // within this actor's isolation; needed to pass across the await boundary.
+        nonisolated(unsafe) let strategy = self.allocationStrategy
+        let node = await strategy.onClusterEvent(event)
         try await self.updateTargetNode(node: node)
     }
 
@@ -200,6 +210,11 @@ internal distributed actor ClusterSingletonBoss<Act: ClusterSingleton>: ClusterS
             targetSingletonBossID.path = self.id.path
             let targetSingletonBoss = try Self.resolve(id: targetSingletonBossID, using: self.actorSystem)
 
+            // nonisolated(unsafe): self captured for Backoff.attempt closure which crosses isolation
+            // boundary. Even though distributed actors are Sendable, the closure type itself requires this.
+            nonisolated(unsafe) let unsafeSelf = self
+            let settingsName = self.settings.name
+            let selfPath = self.id.path
             let targetSingleton: Act = try await Backoff.exponential(
                 initialInterval: settings.locateActiveSingletonBackoff.initialInterval,
                 multiplier: settings.locateActiveSingletonBackoff.multiplier,
@@ -210,17 +225,17 @@ internal distributed actor ClusterSingletonBoss<Act: ClusterSingleton>: ClusterS
                 // confirm tha the boss is hosting the singleton, if not we may have to wait and try again
                 do {
                     guard (try? await targetSingletonBoss.hasActiveSingleton()) ?? false else {
-                        throw SingletonNotFoundNoExpectedNode(id: self.settings.name, node)
+                        throw SingletonNotFoundNoExpectedNode(id: settingsName, node)
                     }
                 } catch {
                     throw error
                 }
 
                 var targetSingletonID = ActorID(remote: otherNode, type: Self.self, incarnation: .wellKnown)
-                targetSingletonID.metadata.wellKnown = self.settings.name
-                targetSingletonID.path = self.id.path
+                targetSingletonID.metadata.wellKnown = settingsName
+                targetSingletonID.path = selfPath
 
-                return try Act.resolve(id: targetSingletonID, using: self.actorSystem)
+                return try Act.resolve(id: targetSingletonID, using: unsafeSelf.actorSystem)
             }
             self.updateSingleton(targetSingleton)
 
@@ -277,42 +292,83 @@ internal distributed actor ClusterSingletonBoss<Act: ClusterSingleton>: ClusterS
         }
 
         // Otherwise, we "stash" the remote call until singleton becomes available.
-        let found = try await withCheckedThrowingContinuation { continuation in
-            Task {
-                do {
-                    let callID = UUID()
-                    try self.buffer.stash((callID, continuation))
-                    self.log.debug(
-                        "Stashed remote call [\(callID)] to [\(target)]",
-                        metadata: self.metadata([
-                            "remoteCall/target": "\(target)"
-                        ])
-                    )
-                } catch {
-                    switch error {
-                    case BufferError.full:
-                        // TODO: log this warning only "once in while" after buffer becomes full
-                        self.log.warning("Buffer is full. Remote call might start getting disposed.", metadata: self.metadata())
-                        if let oldest = self.buffer.take() {
-                            oldest.continuation.resume(throwing: ClusterSingletonError.bufferCapacityExceeded)
-                        }
-                    default:
-                        self.log.warning("Unable to stash remote call, error: \(error)", metadata: self.metadata())
-                        continuation.resume(throwing: ClusterSingletonError.stashFailure)
-                    }
+
+        // Pre-create the continuation and stash it synchronously (before any async boundary).
+        // ClusterCancellableCheckedContinuation is @unchecked Sendable, so it can be captured
+        // in the nonisolated(unsafe) operation below without self-isolation region violations.
+        // This mirrors the WorkerPool.selectWorker pattern: actor-isolated state is accessed
+        // here (synchronously), and the async wait only captures the @unchecked Sendable cccc.
+        let cccc = ClusterCancellableCheckedContinuation<Act>()
+        let callID = UUID()
+        // Pre-extract target description to a Sendable String before the Logger autoclosure call.
+        // Logger.debug/@autoclosure parameters may be treated as @Sendable in Swift 6, making
+        // captures of non-Sendable RemoteCallTarget an error (sending 'target' risks data races).
+        let targetDebugDescription = "\(target)"
+        do {
+            try self.buffer.stash((callID, cccc))
+            self.log.debug(
+                "Stashed remote call [\(callID)] to [\(targetDebugDescription)]",
+                metadata: self.metadata(["remoteCall/target": targetDebugDescription])
+            )
+        } catch {
+            switch error {
+            case BufferError.full:
+                // TODO: log this warning only "once in while" after buffer becomes full
+                self.log.warning("Buffer is full. Remote call might start getting disposed.", metadata: self.metadata())
+                if let oldest = self.buffer.take() {
+                    oldest.continuation.resume(throwing: ClusterSingletonError.bufferCapacityExceeded)
                 }
+                // After making room, retry the stash. If it still fails (e.g. capacity == 0),
+                // throw immediately — cccc.resume(throwing:) is a no-op before setContinuation.
+                do {
+                    try self.buffer.stash((callID, cccc))
+                } catch {
+                    throw ClusterSingletonError.bufferCapacityExceeded
+                }
+            default:
+                // Throw immediately rather than calling cccc.resume(throwing:), which would
+                // be a no-op here since setContinuation has not been called yet.
+                self.log.warning("Unable to stash remote call, error: \(error)", metadata: self.metadata())
+                throw ClusterSingletonError.stashFailure
             }
         }
+
+        // Wait for the stashed cccc to be resumed by updateSingleton (or fail on cancellation).
+        // nonisolated(unsafe): captures only cccc (@unchecked Sendable), not any actor-isolated
+        // state. Required to break self-isolation chain for withTaskCancellationHandler.
+        nonisolated(unsafe) let operation: () async throws -> Act = {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Act, any Error>) in
+                _ = cccc.setContinuation(continuation)
+            }
+        }
+        let found = try await withTaskCancellationHandler(
+            operation: operation,
+            onCancel: { cccc.cancel() }
+        )
 
         log.info("Found singleton: \(found) local:\(__isLocalActor(found))", metadata: self.metadata())
         return found
     }
 
-    private func activate(_ singletonFactory: (ClusterSystem) async throws -> Act) async throws -> Act {
+    private func activate(_ singletonFactory: @escaping (ClusterSystem) async throws -> Act) async throws -> Act {
         let props = _Props.singletonInstance(settings: self.settings)
-        let singleton = try await _Props.$forSpawn.withValue(props) {
-            try await singletonFactory(self.actorSystem)
+        // Pre-access actor-isolated state before the async boundary. actorSystem is a
+        // DistributedActor (Sendable) so it can be captured in a @Sendable closure.
+        let actorSystem = self.actorSystem
+        // Wrap non-Sendable singletonFactory in UnsafeSendableBox so it can be captured
+        // in the @Sendable operation closure. The factory is invoked exactly once during
+        // activation, protected by this actor's isolation of activate().
+        let singletonFactoryBox = UnsafeSendableBox(singletonFactory)
+        // nonisolated(unsafe): any closure literal defined inside an actor method is
+        // classified as 'self-isolated' by Swift 6's region-based isolation analysis.
+        // Storing the operation in a nonisolated(unsafe) binding removes it from the
+        // actor's isolation region so it satisfies withValue's 'sending' operation parameter.
+        // @Sendable: all captures are Sendable (actorSystem: DistributedActor,
+        // singletonFactoryBox: @unchecked Sendable).
+        nonisolated(unsafe) let operation: @Sendable () async throws -> Act = {
+            try await singletonFactoryBox.value(actorSystem)
         }
+        let singleton = try await _Props.$forSpawn.withValue(props, operation: operation)
 
         await singleton.whenLocal {
             await $0.activateSingleton()
@@ -352,7 +408,9 @@ internal distributed actor ClusterSingletonBoss<Act: ClusterSingleton>: ClusterS
 
 extension ClusterSingletonBoss {
     struct RemoteCallBuffer {
-        typealias Item = (callID: CallID, continuation: CheckedContinuation<Act, Error>)
+        // ClusterCancellableCheckedContinuation is @unchecked Sendable, allowing it to
+        // be pre-stashed before async boundaries without self-isolation region violations.
+        typealias Item = (callID: CallID, continuation: ClusterCancellableCheckedContinuation<Act>)
 
         private var buffer: [Item] = []
 
@@ -457,15 +515,18 @@ extension ClusterSingletonBoss {
     {
         do {
             let singleton = try await self.findSingleton(target: target)
+            // nonisolated(unsafe): invocation copied from inout param; target is non-Sendable RemoteCallTarget.
+            // Both are passed into whenLocal callback crossing actor isolation boundary.
+            // Copies made before logging to satisfy Swift 6.2 sending analysis.
+            nonisolated(unsafe) var invocation = invocation
+            nonisolated(unsafe) let unsafeTarget = target
             self.log.trace(
-                "Forwarding call to \(target)",
+                "Forwarding call to \(unsafeTarget)",
                 metadata: self.metadata([
-                    "remoteCall/target": "\(target)",
+                    "remoteCall/target": "\(unsafeTarget)",
                     "remoteCall/invocation": "\(invocation)",
                 ])
             )
-
-            var invocation = invocation  // can't be inout param
             if targetNode == selfNode,
                 let singleton = self.targetSingleton
             {
@@ -473,22 +534,26 @@ extension ClusterSingletonBoss {
                     singleton.id.node == selfNode,
                     "Target singleton node and targetNode were not the same! TargetNode: \(targetNode?.debugDescription ?? "UNKNOWN TARGET NODE")," + " singleton.id.node: \(singleton.id.node)"
                 )
-                return try await singleton.actorSystem.localCall(
+                // Use the boxed variant so that `Res` (Codable but not necessarily Sendable)
+                // stays within ClusterSystem's isolation before being wrapped.  The box
+                // (@unchecked Sendable) safely crosses the actor boundary back to here.
+                return try await singleton.actorSystem.localCallBoxed(
                     on: singleton,
-                    target: target,
+                    target: unsafeTarget,
                     invocation: &invocation,
                     throwing: throwing,
                     returning: returning
-                )
+                ).value
             }
 
-            return try await singleton.actorSystem.remoteCall(
+            // Same rationale as localCallBoxed above.
+            return try await singleton.actorSystem.remoteCallBoxed(
                 on: singleton,
-                target: target,
+                target: unsafeTarget,
                 invocation: &invocation,
                 throwing: throwing,
                 returning: returning
-            )
+            ).value
         } catch {
             log.warning(
                 "Failed forwarding call to \(target)",
@@ -507,21 +572,24 @@ extension ClusterSingletonBoss {
         invocation: ActorSystem.InvocationEncoder,
         throwing: Err.Type
     ) async throws where Err: Error {
-        self.log.trace("ENTER forwardOrStashRemoteCallVoid \(target)")
-        let singleton = try await self.findSingleton(target: target)
+        // nonisolated(unsafe): invocation copied from inout param; target is non-Sendable RemoteCallTarget.
+        // Both are passed into whenLocal callback crossing actor isolation boundary.
+        // Copies made before logging to satisfy Swift 6.2 sending analysis.
+        nonisolated(unsafe) var invocation = invocation
+        nonisolated(unsafe) let unsafeTarget = target
+        self.log.trace("ENTER forwardOrStashRemoteCallVoid \(unsafeTarget)")
+        let singleton = try await self.findSingleton(target: unsafeTarget)
         self.log.trace(
-            "Forwarding call to [\(target)] to [\(singleton) @ \(singleton.id)]",
+            "Forwarding call to [\(unsafeTarget)] to [\(singleton) @ \(singleton.id)]",
             metadata: self.metadata([
-                "remoteCall/target": "\(target)",
+                "remoteCall/target": "\(unsafeTarget)",
                 "remoteCall/invocation": "\(invocation)",
             ])
         )
-
-        var invocation = invocation  // can't be inout param
         if targetNode == selfNode,
             let singleton = self.targetSingleton
         {
-            self.log.trace("ENTER forwardOrStashRemoteCallVoid \(target) -> DIRECT LOCAL CALL")
+            self.log.trace("ENTER forwardOrStashRemoteCallVoid \(unsafeTarget) -> DIRECT LOCAL CALL")
 
             assert(
                 singleton.id.node == selfNode,
@@ -529,7 +597,7 @@ extension ClusterSingletonBoss {
             )
             return try await singleton.actorSystem.localCallVoid(
                 on: singleton,
-                target: target,
+                target: unsafeTarget,
                 invocation: &invocation,
                 throwing: throwing
             )
@@ -537,7 +605,7 @@ extension ClusterSingletonBoss {
 
         return try await singleton.actorSystem.remoteCallVoid(
             on: singleton,
-            target: target,
+            target: unsafeTarget,
             invocation: &invocation,
             throwing: throwing
         )
@@ -566,14 +634,23 @@ struct ClusterSingletonRemoteCallInterceptor<Singleton: ClusterSingleton>: Remot
         }
 
         let invocation = invocation  // can't capture inout param
-        let result = try await self.singletonBoss.whenLocal { __secretlyKnownToBeLocal in  // TODO(distributed): this is annoying, we must track "known to be local" in typesystem instead
-            try await __secretlyKnownToBeLocal.forwardOrStashRemoteCall(target: target, invocation: invocation, throwing: throwing, returning: returning)
+        // Capture metatypes as local lets to silence Swift 6 non-Sendable capture warnings.
+        // Metatypes are inherently safe to share across concurrency boundaries.
+        let throwingType = throwing
+        // nonisolated(unsafe): returningType metatype, target, and invocation are non-Sendable types
+        // that must cross into the whenLocal callback's isolation boundary.
+        nonisolated(unsafe) let returningType = returning
+        nonisolated(unsafe) let unsafeTarget = target
+        nonisolated(unsafe) let unsafeInvocation = invocation
+        let wrappedResult: UnsafeSendableBox<Res>? = try await self.singletonBoss.whenLocal { __secretlyKnownToBeLocal in  // TODO(distributed): this is annoying, we must track "known to be local" in typesystem instead
+            let res: Res = try await __secretlyKnownToBeLocal.forwardOrStashRemoteCall(target: unsafeTarget, invocation: unsafeInvocation, throwing: throwingType, returning: returningType)
+            return UnsafeSendableBox(res)
         }
 
-        guard let result = result else {
+        guard let wrappedResult else {
             fatalError("Unexpected remote call")
         }
-        return result
+        return wrappedResult.value
     }
 
     func interceptRemoteCallVoid<Act, Err>(
@@ -592,8 +669,11 @@ struct ClusterSingletonRemoteCallInterceptor<Singleton: ClusterSingleton>: Remot
         }
 
         let invocation = invocation  // can't capture inout param
+        // nonisolated(unsafe): target and invocation are non-Sendable types crossing into whenLocal callback.
+        nonisolated(unsafe) let unsafeTarget = target
+        nonisolated(unsafe) let unsafeInvocation = invocation
         try await self.singletonBoss.whenLocal { __secretlyKnownToBeLocal in  // TODO(distributed): this is annoying, we must track "known to be local" in typesystem instead
-            try await __secretlyKnownToBeLocal.forwardOrStashRemoteCallVoid(target: target, invocation: invocation, throwing: throwing)
+            try await __secretlyKnownToBeLocal.forwardOrStashRemoteCallVoid(target: unsafeTarget, invocation: unsafeInvocation, throwing: throwing)
         }
     }
 }

@@ -29,6 +29,20 @@ import NIOPosix
 /// Rather, the system should be configured to host the kinds of dispatchers that the application needs.
 ///
 /// A `ClusterSystem` and all of the actors contained within remain alive until the `terminate` call is made.
+/// ## `@unchecked Sendable` Rationale
+///
+/// `ClusterSystem` is `@unchecked Sendable` because all mutable state is protected by explicit locks:
+///
+/// 1. **namingLock** (`Lock`) — Guards: `namingContext`, `_managedRefs`, `_managedDistributedActors`,
+///    `_reservedNames`, `_managedWellKnownDistributedActors`
+/// 2. **initLock** (`Lock`) — Guards lazy-init subsystem access: `_receptionistStore`, `_downingStrategyStore`,
+///    and double-check pattern for `_cluster`, `cluster`, `_nodeDeathWatcher`, `_receptionist`
+/// 3. **lazyInitializationLock** (`ReadWriteLock`) — Guards: `_serialization`
+/// 4. **inFlightCallLock** (`Lock`) — Guards: `_inFlightCalls`
+/// 5. **shutdownSemaphore** (`DispatchSemaphore`) — Guards shutdown sequencing
+///
+/// Remaining mutable fields (`_deadLetters`, `systemProvider`, `userProvider`, `_associationTombstoneCleanupTask`)
+/// are set once during `init` and never mutated after the system is shared — no lock is needed for these fields.
 public class ClusterSystem: DistributedActorSystem, @unchecked Sendable {
     public typealias InvocationDecoder = ClusterInvocationDecoder
     public typealias InvocationEncoder = ClusterInvocationEncoder
@@ -38,12 +52,13 @@ public class ClusterSystem: DistributedActorSystem, @unchecked Sendable {
 
     public let name: String
 
-    // initialized during startup
+    // Set once during ClusterSystem.init, read-only after. No lock needed.
     internal var _deadLetters: _ActorRef<DeadLetter>!
 
     /// Impl note: Atomic since we are being called from outside actors here (or MAY be), thus we need to synchronize access
     /// Must be protected with `namingLock`
     internal var namingContext = ActorNamingContext()
+    // Guards: namingContext, _managedRefs, _managedDistributedActors, _reservedNames, _managedWellKnownDistributedActors
     internal let namingLock = Lock()
 
     internal func withNamingContext<T>(_ block: (inout ActorNamingContext) throws -> T) rethrows -> T {
@@ -54,8 +69,10 @@ public class ClusterSystem: DistributedActorSystem, @unchecked Sendable {
 
     // This lock is used to keep actors from accessing things like `system.cluster` before the cluster actor finished initializing.
     // TODO: collapse it with the other initialization lock; the other one is not needed now I think?
+    // Guards: _receptionistStore, _downingStrategyStore, and lazy-init double-check for _cluster, cluster, _nodeDeathWatcher, _receptionist
     private let initLock = Lock()
 
+    // Set once during ClusterSystem.init, cancelled only in shutdown. Not lock-protected; see lock inventory in class doc.
     private var _associationTombstoneCleanupTask: RepeatedTask?
 
     private let dispatcher: InternalMessageDispatcher
@@ -70,6 +87,7 @@ public class ClusterSystem: DistributedActorSystem, @unchecked Sendable {
 
     // TODO: converge into one tree
     // Note: This differs from Akka, we do full separate trees here
+    // Set once during ClusterSystem.init, read-only after. No lock needed.
     private var systemProvider: _ActorRefProvider!
     private var userProvider: _ActorRefProvider!
 
@@ -80,6 +98,7 @@ public class ClusterSystem: DistributedActorSystem, @unchecked Sendable {
     public let settings: ClusterSystemSettings
 
     // initialized during startup
+    // Guards: _serialization
     private let lazyInitializationLock: ReadWriteLock
 
     internal var _serialization: ManagedAtomicLazyReference<Serialization>
@@ -93,6 +112,7 @@ public class ClusterSystem: DistributedActorSystem, @unchecked Sendable {
         }
     }
 
+    // Guards: _inFlightCalls
     private let inFlightCallLock = Lock()
     private var _inFlightCalls: [CallID: CheckedContinuation<any AnyRemoteCallReply, Error>] = [:]
 
@@ -191,7 +211,7 @@ public class ClusterSystem: DistributedActorSystem, @unchecked Sendable {
 
     /// Greater than 0 shutdown has been initiated / is in progress.
     private let shutdownFlag: ManagedAtomic<Int> = .init(0)
-    internal var isShuttingDown: Bool {
+    nonisolated internal var isShuttingDown: Bool {
         self.shutdownFlag.load(ordering: .sequentiallyConsistent) > 0
     }
 
@@ -435,7 +455,7 @@ public class ClusterSystem: DistributedActorSystem, @unchecked Sendable {
     }
 
     /// Object that can be awaited on until the system has completed shutting down.
-    public struct Shutdown {
+    public struct Shutdown: @unchecked Sendable {
         private let receptacle: BlockingReceptacle<Error?>
 
         init(receptacle: BlockingReceptacle<Error?>) {
@@ -475,7 +495,7 @@ public class ClusterSystem: DistributedActorSystem, @unchecked Sendable {
     }
 
     /// Returns `true` if the system was already successfully terminated (i.e. awaiting ``terminated`` would resume immediately).
-    public var isTerminated: Bool {
+    nonisolated public var isTerminated: Bool {
         self.shutdownFlag.load(ordering: .relaxed) > 0
     }
 
@@ -1307,43 +1327,49 @@ extension ClusterSystem {
         let callID = UUID()
 
         let timeout = RemoteCall.timeout ?? self.settings.remoteCall.defaultTimeout
-        let timeoutTask: Task<Void, Error> = Task.detached {
-            try await Task.sleep(nanoseconds: UInt64(timeout.nanoseconds))
+        nonisolated(unsafe) let unsafeTarget = target
+        nonisolated(unsafe) let unsafeTimeout = timeout
+        nonisolated(unsafe) let unsafeCallID = callID
+        nonisolated(unsafe) let unsafeActorID = actorID
+        let timeoutOperation: @Sendable () async throws -> Void = {
+            try await Task.sleep(nanoseconds: UInt64(unsafeTimeout.nanoseconds))
             guard !Task.isCancelled else {
                 return
             }
 
-            self.inFlightCallLock.withLockVoid {
-                guard let continuation = self._inFlightCalls.removeValue(forKey: callID) else {
-                    // remoteCall was already completed successfully, nothing to do here
-                    return
-                }
-
-                let error: Error
-                if self.isShuttingDown {
-                    // If the system is shutting down, we should offer a more specific error;
-                    //
-                    // We may not be getting responses simply because we've shut down associations
-                    // and cannot receive them anymore.
-                    // Some subsystems may ignore those errors, since they are "expected".
-                    //
-                    // If we're shutting down, it is okay to not get acknowledgements to calls for example,
-                    // and we don't care about them missing -- we're shutting down anyway.
-                    error = RemoteCallError(.clusterAlreadyShutDown, on: actorID, target: target)
-                } else {
-                    error = RemoteCallError(
-                        .timedOut(
-                            callID,
-                            TimeoutError(message: "Remote call [\(callID)] to [\(target)](\(actorID)) timed out", timeout: timeout)
-                        ),
-                        on: actorID,
-                        target: target
-                    )
-                }
-
-                continuation.resume(throwing: error)
+            let continuation = self.inFlightCallLock.withLock {
+                self._inFlightCalls.removeValue(forKey: unsafeCallID)
             }
+            guard let continuation else {
+                // remoteCall was already completed successfully, nothing to do here
+                return
+            }
+
+            let error: Error
+            if self.isShuttingDown {
+                // If the system is shutting down, we should offer a more specific error;
+                //
+                // We may not be getting responses simply because we've shut down associations
+                // and cannot receive them anymore.
+                // Some subsystems may ignore those errors, since they are "expected".
+                //
+                // If we're shutting down, it is okay to not get acknowledgements to calls for example,
+                // and we don't care about them missing -- we're shutting down anyway.
+                error = RemoteCallError(.clusterAlreadyShutDown, on: unsafeActorID, target: unsafeTarget)
+            } else {
+                error = RemoteCallError(
+                    .timedOut(
+                        unsafeCallID,
+                        TimeoutError(message: "Remote call [\(unsafeCallID)] to [\(unsafeTarget)](\(unsafeActorID)) timed out", timeout: unsafeTimeout)
+                    ),
+                    on: unsafeActorID,
+                    target: unsafeTarget
+                )
+            }
+
+            continuation.resume(throwing: error)
         }
+        let timeoutTask: Task<Void, Error> = Task.detached(operation: timeoutOperation)
         defer {
             timeoutTask.cancel()
         }
@@ -1406,29 +1432,91 @@ extension ClusterSystem {
             ]
         )
 
-        let anyReturn = try await withCheckedThrowingContinuation { cc in
-            Task { [invocation] in  // FIXME: make an async stream here since we lost ordering guarantees here
-                var directDecoder = ClusterInvocationDecoder(system: self, invocation: invocation)
-                let directReturnHandler = ClusterInvocationResultHandler(directReturnContinuation: cc)
+        nonisolated(unsafe) let unsafeInvocation = invocation
+        nonisolated(unsafe) let unsafeTarget = target
+        nonisolated(unsafe) let unsafeActor = actor
+        let anyReturn: Any = try await withCheckedThrowingContinuation { (cc: CheckedContinuation<Any, Error>) in
+            nonisolated(unsafe) let unsafeCC = cc
+            let taskOperation: @Sendable () async throws -> Void = {
+                var directDecoder = ClusterInvocationDecoder(system: self, invocation: unsafeInvocation)
+                let directReturnHandler = ClusterInvocationResultHandler(directReturnContinuation: unsafeCC)
 
-                try await executeDistributedTarget(
-                    on: actor,
-                    target: target,
+                try await self.executeDistributedTarget(
+                    on: unsafeActor,
+                    target: unsafeTarget,
                     invocationDecoder: &directDecoder,
                     handler: directReturnHandler
                 )
             }
+            Task(operation: taskOperation)
         }
 
         guard let wellTypedReturn = anyReturn as? Res else {
             throw RemoteCallError(
                 .illegalReplyType(UUID(), expected: Res.self, got: type(of: anyReturn)),
                 on: actor.id,
-                target: target
+                target: unsafeTarget
             )
         }
 
         return wellTypedReturn
+    }
+
+    /// Variant of `localCall` that returns the result boxed in `UnsafeSendableBox<Res>`.
+    ///
+    /// Callers that are isolated to a different actor (e.g. `ClusterSingletonBoss`) cannot
+    /// receive a non-`Sendable` `Res` directly from `localCall` without a Swift 6 strict-
+    /// concurrency error.  Calling this method instead keeps the `Res` value within
+    /// `ClusterSystem`'s own isolation (same-actor call to `self.localCall`), boxes it, and
+    /// returns the `@unchecked Sendable` box so the value can safely cross the actor boundary.
+    internal func localCallBoxed<Act, Err, Res>(
+        on actor: Act,
+        target: RemoteCallTarget,
+        invocation: inout InvocationEncoder,
+        throwing: Err.Type,
+        returning: Res.Type
+    ) async throws -> UnsafeSendableBox<Res>
+    where
+        Act: DistributedActor,
+        Act.ID == ActorID,
+        Err: Error,
+        Res: Codable
+    {
+        // Same-actor call: Res stays in ClusterSystem's isolation — no boundary crossing.
+        let result = try await self.localCall(
+            on: actor,
+            target: target,
+            invocation: &invocation,
+            throwing: throwing,
+            returning: returning
+        )
+        return UnsafeSendableBox(result)
+    }
+
+    /// Variant of `remoteCall` that returns the result boxed in `UnsafeSendableBox<Res>`.
+    /// See `localCallBoxed` for rationale.
+    internal func remoteCallBoxed<Act, Err, Res>(
+        on actor: Act,
+        target: RemoteCallTarget,
+        invocation: inout InvocationEncoder,
+        throwing: Err.Type,
+        returning: Res.Type
+    ) async throws -> UnsafeSendableBox<Res>
+    where
+        Act: DistributedActor,
+        Act.ID == ActorID,
+        Err: Error,
+        Res: Codable
+    {
+        // Same-actor call: Res stays in ClusterSystem's isolation — no boundary crossing.
+        let result = try await self.remoteCall(
+            on: actor,
+            target: target,
+            invocation: &invocation,
+            throwing: throwing,
+            returning: returning
+        )
+        return UnsafeSendableBox(result)
     }
 
     /// Able to direct a `remoteCallVoid` initiated call, right into a local invocation.
@@ -1456,18 +1544,23 @@ extension ClusterSystem {
             ]
         )
 
+        nonisolated(unsafe) let unsafeInvocation = invocation
+        nonisolated(unsafe) let unsafeTarget = target
+        nonisolated(unsafe) let unsafeActor = actor
         _ = try await withCheckedThrowingContinuation { (cc: CheckedContinuation<Any, Error>) in
-            Task { [invocation] in
-                var directDecoder = ClusterInvocationDecoder(system: self, invocation: invocation)
-                let directReturnHandler = ClusterInvocationResultHandler(directReturnContinuation: cc)
+            nonisolated(unsafe) let unsafeCC = cc
+            let taskOperation: @Sendable () async throws -> Void = {
+                var directDecoder = ClusterInvocationDecoder(system: self, invocation: unsafeInvocation)
+                let directReturnHandler = ClusterInvocationResultHandler(directReturnContinuation: unsafeCC)
 
-                try await executeDistributedTarget(
-                    on: actor,
-                    target: target,
+                try await self.executeDistributedTarget(
+                    on: unsafeActor,
+                    target: unsafeTarget,
                     invocationDecoder: &directDecoder,
                     handler: directReturnHandler
                 )
             }
+            Task(operation: taskOperation)
         }
     }
 }
@@ -1525,13 +1618,15 @@ extension ClusterSystem {
     }
 
     func receiveRemoteCallReply(_ reply: any AnyRemoteCallReply) {
-        self.inFlightCallLock.withLockVoid {
-            guard let continuation = self._inFlightCalls.removeValue(forKey: reply.callID) else {
-                self.log.warning("Missing continuation for remote call \(reply.callID). Reply will be dropped: \(reply)")  // this could be because remote call has timed out
-                return
-            }
-            continuation.resume(returning: reply)
+        let continuation = self.inFlightCallLock.withLock {
+            self._inFlightCalls.removeValue(forKey: reply.callID)
         }
+        guard let continuation else {
+            self.log.warning("Missing continuation for remote call \(reply.callID). Reply will be dropped: \(reply)")  // this could be because remote call has timed out
+            return
+        }
+        nonisolated(unsafe) let unsafeReply = reply
+        continuation.resume(returning: unsafeReply)
     }
 
     private func resolveLocalAnyDistributedActor(id: ActorID) -> (any DistributedActor)? {
@@ -1633,7 +1728,8 @@ public struct ClusterInvocationResultHandler: DistributedTargetInvocationResultH
     public func onReturn<Success: Codable>(value: Success) async throws {
         switch self.state {
         case .localDirectReturn(let directReturnContinuation):
-            directReturnContinuation.resume(returning: value)
+            nonisolated(unsafe) let unsafeValue = value
+            directReturnContinuation.resume(returning: unsafeValue)
 
         case .remoteCall(let system, let callID, let channel, let recipient):
             system.log.trace(
@@ -1776,7 +1872,7 @@ struct RemoteCallReply<Value: Codable>: AnyRemoteCallReply {
     }
 }
 
-public struct GenericRemoteCallError: Error, Codable {
+public struct GenericRemoteCallError: Error, Codable, Sendable {
     public let message: String
 
     init(message: String) {
@@ -1788,13 +1884,15 @@ public struct GenericRemoteCallError: Error, Codable {
     }
 }
 
-public struct ClusterSystemError: DistributedActorSystemError, CustomStringConvertible {
-    internal enum _ClusterSystemError {
+// @unchecked Sendable: _Storage is a class with let-only properties — @unchecked justified.
+public struct ClusterSystemError: DistributedActorSystemError, CustomStringConvertible, @unchecked Sendable {
+    internal enum _ClusterSystemError: Sendable {
         case duplicateActorPath(path: ActorPath, existing: ActorID)
         case shuttingDown(String)
     }
 
-    internal class _Storage {
+    // @unchecked Sendable: Class with let-only properties — @unchecked justified.
+    internal class _Storage: @unchecked Sendable {
         let error: _ClusterSystemError
         let file: String
         let line: UInt
@@ -1820,12 +1918,14 @@ public struct ClusterSystemError: DistributedActorSystemError, CustomStringConve
 /// Error thrown when unable to resolve an ``ActorID``.
 ///
 /// Refer to ``ClusterSystem/resolve(id:as:)`` or the distributed actors Swift Evolution proposal for details.
-public struct ResolveError: DistributedActorSystemError, CustomStringConvertible {
-    internal enum _ResolveError {
+// @unchecked Sendable: _Storage is a class with let-only properties — @unchecked justified.
+public struct ResolveError: DistributedActorSystemError, CustomStringConvertible, @unchecked Sendable {
+    internal enum _ResolveError: Sendable {
         case illegalIdentity(ClusterSystem.ActorID)
     }
 
-    internal class _Storage {
+    // @unchecked Sendable: Class with let-only properties — @unchecked justified.
+    internal class _Storage: @unchecked Sendable {
         let error: _ResolveError
         let file: String
         let line: UInt
@@ -1866,15 +1966,19 @@ internal struct LazyStart<Message: Codable> {
     }
 }
 
-public struct RemoteCallError: DistributedActorSystemError, CustomStringConvertible {
-    internal enum _RemoteCallError {
+// @unchecked Sendable: _Storage is a class with let-only properties — @unchecked justified.
+public struct RemoteCallError: DistributedActorSystemError, CustomStringConvertible, @unchecked Sendable {
+    // @unchecked Sendable: .illegalReplyType captures Any.Type which is not Sendable,
+    // but the enum is frozen at construction time and never mutated.
+    internal enum _RemoteCallError: @unchecked Sendable {
         case clusterAlreadyShutDown
         case timedOut(ClusterSystem.CallID, TimeoutError)
         case invalidReply(ClusterSystem.CallID)
         case illegalReplyType(ClusterSystem.CallID, expected: Any.Type, got: Any.Type)
     }
 
-    internal class _Storage {
+    // @unchecked Sendable: Class with let-only properties — @unchecked justified.
+    internal class _Storage: @unchecked Sendable {
         let error: _RemoteCallError
         let actorID: ActorID
         let target: RemoteCallTarget

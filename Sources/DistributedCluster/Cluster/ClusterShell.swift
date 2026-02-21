@@ -30,7 +30,13 @@ public enum Cluster {}
 /// as well as orchestrating any high-level membership changes, e.g. by interacting with a failure detector and other gossip mechanisms.
 ///
 /// It keeps the `Membership` instance that can be seen the source of truth for any membership based decisions.
-internal class ClusterShell {
+// @unchecked Sendable justification:
+// ClusterShell is a class shared across actor/task boundaries. Thread safety is provided by:
+// - `_associationsLock` guards `_associations` and `_associationTombstones`
+// - `refLock` guards `_ref`
+// - `_serializationPool`, `_swimShell`, and `clusterEvents` are set once during `start()` and read-only thereafter
+// - All message processing is serialized through the actor mailbox (_ActorShell)
+internal class ClusterShell: @unchecked Sendable {
     internal static let naming = _ActorNaming.unique("cluster")
     public typealias Ref = _ActorRef<ClusterShell.Message>
 
@@ -47,6 +53,11 @@ internal class ClusterShell {
     // which would cause more latency to obtaining the association. refs cache the remote control once they have obtained it.
 
     // TODO: consider ReadWriteLock lock, these accesses are very strongly read only biased
+    // Guards: [_associations, _associationTombstones]
+    // Acquired by: getAnyExistingAssociation, getExistingAssociationTombstone, getEnsureAssociation,
+    //   getSpecificExistingAssociation, completeAssociation, terminateAssociation,
+    //   _testingOnly_associations, _testingOnly_associationTombstones, _associatedNodes,
+    //   cleanUpAssociationTombstones, recordMetrics
     private let _associationsLock: Lock
 
     /// Used by remote actor refs to obtain associations
@@ -237,6 +248,7 @@ internal class ClusterShell {
 
     // `_serializationPool` is only used when `start()` is invoked, and there it is set immediately as well
     // any earlier access to the pool is a bug (in our library) and must be treated as such.
+    // FIXME: Swift 6 — verify concurrent access safety (set once in start(), read-only thereafter)
     private var _serializationPool: _SerializationPool?
     internal var serializationPool: _SerializationPool {
         guard let pool = self._serializationPool else {
@@ -245,13 +257,17 @@ internal class ClusterShell {
         return pool
     }
 
+    // FIXME: Swift 6 — verify concurrent access safety (set once in start(), read-only thereafter)
     internal private(set) var _swimShell: SWIMActor!
 
+    // FIXME: Swift 6 — verify concurrent access safety (set once in start(), read-only thereafter)
     private var clusterEvents: ClusterEventStream!
 
     // ==== ------------------------------------------------------------------------------------------------------------
     // MARK: Cluster Shell, reference used for issuing commands to the cluster
 
+    // Guards: [_ref]
+    // Acquired by: ref (getter)
     private let refLock = Lock()
 
     private var _ref: ClusterShell.Ref?
@@ -376,6 +392,7 @@ extension ClusterShell {
     /// Once bound proceeds to `ready` state, where it remains to accept or initiate new handshakes.
     private func bind() -> _Behavior<Message> {
         .setup { context in
+            nonisolated(unsafe) let context = context
             // let clusterSettings = context.system.settings
             let bindNode = self.selfNode
 
@@ -460,6 +477,7 @@ extension ClusterShell {
     }
 
     private func publish(_ event: Cluster.Event, to eventStream: ClusterEventStream) {
+        // ClusterEventStream and Cluster.Event are both Sendable; no nonisolated(unsafe) needed.
         Task {
             await eventStream.publish(event)
         }  // TODO(send): we need "send"
@@ -481,7 +499,8 @@ extension ClusterShell {
     ///
     /// Serves as main "driver" for handshake and association state machines.
     private func ready(state: ClusterShellState) -> _Behavior<Message> {
-        func receiveShellCommand(_ context: _ActorContext<Message>, command: CommandMessage) -> _Behavior<Message> {
+        nonisolated(unsafe) let state = state
+        @Sendable func receiveShellCommand(_ context: _ActorContext<Message>, command: CommandMessage) -> _Behavior<Message> {
             state.tracelog(.inbound, message: command)
 
             switch command {
@@ -522,7 +541,7 @@ extension ClusterShell {
             }
         }
 
-        func receiveQuery(_ context: _ActorContext<Message>, query: QueryMessage) -> _Behavior<Message> {
+        @Sendable func receiveQuery(_ context: _ActorContext<Message>, query: QueryMessage) -> _Behavior<Message> {
             state.tracelog(.inbound, message: query)
 
             switch query {
@@ -535,7 +554,7 @@ extension ClusterShell {
             }
         }
 
-        func receiveInbound(_ context: _ActorContext<Message>, message: InboundMessage) throws -> _Behavior<Message> {
+        @Sendable func receiveInbound(_ context: _ActorContext<Message>, message: InboundMessage) throws -> _Behavior<Message> {
             switch message {
             case .handshakeOffer(let offer, let channel, let promise):
                 self.tracelog(context, .receiveUnique(from: offer.originNode), message: offer)
@@ -560,7 +579,7 @@ extension ClusterShell {
         }
 
         /// Allows processing in one spot, all membership changes which we may have emitted in other places, due to joining, downing etc.
-        func receiveChangeMembershipRequest(_ context: _ActorContext<Message>, event: Cluster.Event) -> _Behavior<Message> {
+        @Sendable func receiveChangeMembershipRequest(_ context: _ActorContext<Message>, event: Cluster.Event) -> _Behavior<Message> {
             self.tracelog(context, .receive(from: state.selfNode.endpoint), message: event)
             var state = state
 
@@ -596,7 +615,7 @@ extension ClusterShell {
             return self.ready(state: state)
         }
 
-        func receiveMembershipGossip(
+        @Sendable func receiveMembershipGossip(
             _ context: _ActorContext<Message>,
             _ state: ClusterShellState,
             gossip: Cluster.MembershipGossip

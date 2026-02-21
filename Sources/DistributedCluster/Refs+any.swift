@@ -28,7 +28,9 @@ import protocol NIO.EventLoop
 /// This enables an `_AddressableActorRef` to be useful for watching, storing and comparing actor references of various types with another.
 /// Note that unlike a plain `ActorID` an `_AddressableActorRef` still DOES hold an actual reference to the pointed to actor,
 /// even though it is not able to send messages to it (due to the lack of type-safety when doing so).
-public struct _AddressableActorRef: _DeathWatchable, Hashable {
+// @unchecked Sendable: wraps _ActorRef which is already @unchecked Sendable.
+// The underlying ref is thread-safe via mailbox/actor model.
+public struct _AddressableActorRef: _DeathWatchable, Hashable, @unchecked Sendable {
     @usableFromInline
     enum RefType {
         case remote

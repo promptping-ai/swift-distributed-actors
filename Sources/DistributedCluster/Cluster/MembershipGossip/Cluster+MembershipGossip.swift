@@ -19,7 +19,7 @@ extension Cluster {
     /// Gossip payload about members in the cluster.
     ///
     /// Used to guarantee phrases like "all nodes have seen a node A in status S", upon which the Leader may act.
-    struct MembershipGossip: Codable, Equatable {
+    struct MembershipGossip: Codable, Equatable, Sendable {
         let owner: Cluster.Node
         /// A table maintaining our perception of other nodes views on the version of membership.
         /// Each row in the table represents what versionVector we know the given node has observed recently.
@@ -118,7 +118,7 @@ extension Cluster {
             return change
         }
 
-        struct MergeDirective {
+        struct MergeDirective: Sendable {
             let causalRelation: VersionVector.CausalRelation
             let effectiveChanges: [Cluster.MembershipChange]
         }
@@ -180,7 +180,7 @@ extension Cluster.MembershipGossip {
     /// - node B: is the "farthest" along the vector timeline, yet has never seen gossip from C
     /// - node C (we think): has never seen any gossip from either A or B, realistically though it likely has,
     ///   however it has not yet sent a gossip to "us" such that we could have gotten its updated version vector.
-    struct SeenTable: Equatable {
+    struct SeenTable: Equatable, Sendable {
         var underlying: [Cluster.Node: VersionVector]
 
         init() {

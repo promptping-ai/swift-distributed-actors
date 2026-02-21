@@ -16,7 +16,9 @@
 // MARK: Protocol for singleton allocation strategy
 
 /// Strategy for choosing a `Cluster.Node` to allocate singleton.
-public protocol ClusterSingletonAllocationStrategy {
+// AnyObject + @unchecked Sendable: strategy instances are class-based and accessed
+// only from actor-isolated contexts (ClusterSingletonBoss), serializing all access.
+public protocol ClusterSingletonAllocationStrategy: AnyObject, Sendable {
     /// Receives and handles the `Cluster.Event`.
     ///
     /// - Returns: The current `node` after processing `clusterEvent`.
@@ -30,7 +32,9 @@ public protocol ClusterSingletonAllocationStrategy {
 // MARK: ClusterSingletonAllocationStrategy implementations
 
 /// An `AllocationStrategy` in which selection is based on cluster leadership.
-public final class ClusterSingletonAllocationByLeadership: ClusterSingletonAllocationStrategy {
+// @unchecked Sendable: _node is mutable but accessed only from actor-isolated contexts
+// (ClusterSingletonBoss), which serializes all access.
+public final class ClusterSingletonAllocationByLeadership: ClusterSingletonAllocationStrategy, @unchecked Sendable {
     var _node: Cluster.Node?
 
     public init(settings: ClusterSingletonSettings, actorSystem: ClusterSystem) {

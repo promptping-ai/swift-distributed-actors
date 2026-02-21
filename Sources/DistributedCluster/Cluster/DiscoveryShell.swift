@@ -15,7 +15,8 @@
 import Logging
 import ServiceDiscovery
 
-final class DiscoveryShell {
+// @unchecked Sendable: Mutable state is only accessed from within the actor's mailbox run (single-threaded).
+final class DiscoveryShell: @unchecked Sendable {
     enum Message: _NotActuallyCodableMessage {
         case listing(Set<Cluster.Endpoint>)
         case stop(CompletionReason?)
@@ -34,6 +35,7 @@ final class DiscoveryShell {
 
     var behavior: _Behavior<Message> {
         .setup { context in
+            nonisolated(unsafe) let context = context
             // FIXME: should have a behavior to bridge the async world...
             context.log.info("Initializing discovery: \(self.settings.implementation)")
             // Try to initialise clusterd if needed

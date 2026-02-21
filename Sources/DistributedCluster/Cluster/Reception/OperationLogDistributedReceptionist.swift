@@ -869,11 +869,12 @@ extension OpLogDistributedReceptionist {
             return  // nothing to stream, done
         }
 
+        let replayerSeqNr = replayer.atSeqNr
         self.log.debug(
-            "Streaming \(sequencedOps.count) ops: from [\(replayer.atSeqNr)]",
+            "Streaming \(sequencedOps.count) ops: from [\(replayerSeqNr)]",
             metadata: [
                 "receptionist/peer": "\(peer.id)",
-                "receptionist/ops/replay/atSeqNr": "\(replayer.atSeqNr)",
+                "receptionist/ops/replay/atSeqNr": "\(replayerSeqNr)",
                 "receptionist/ops/maxSeqNr": "\(self.ops.maxSeqNr)",
             ]
         )  // TODO: metadata pattern
@@ -1059,7 +1060,7 @@ extension OpLogDistributedReceptionist {
 extension OpLogDistributedReceptionist {
     /// Confirms that the remote peer receptionist has received Ops up until the given element,
     /// allows us to push more elements
-    final class PushOps: Receptionist.Message {
+    final class PushOps: Receptionist.Message, @unchecked Sendable {
         // the "sender" of the push
         let peer: OpLogDistributedReceptionist
 
@@ -1117,7 +1118,7 @@ extension OpLogDistributedReceptionist {
 
     /// Confirms that the remote peer receptionist has received Ops up until the given element,
     /// allows us to push more elements
-    final class AckOps: Receptionist.Message, CustomStringConvertible {
+    final class AckOps: Receptionist.Message, CustomStringConvertible, @unchecked Sendable {
         /// Cumulative ACK of all ops until (and including) this one.
         ///
         /// If a recipient has more ops than the `confirmedUntil` confirms seeing, it shall offer
@@ -1168,7 +1169,7 @@ extension OpLogDistributedReceptionist {
         }
     }
 
-    final class PublishLocalListingsTrigger: Receptionist.Message, _NotActuallyCodableMessage, CustomStringConvertible {
+    final class PublishLocalListingsTrigger: Receptionist.Message, _NotActuallyCodableMessage, CustomStringConvertible, @unchecked Sendable {
         override init() {
             super.init()
         }

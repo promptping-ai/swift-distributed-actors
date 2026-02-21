@@ -23,7 +23,10 @@ import Atomics
 /// by being sent from a remote note, one can safely assume that the actor _existed_, however nothing
 /// is clear about its current lifecycle state (it may have already terminated the moment the message was sent,
 /// or even before then). To obtain lifecycle status of this actor the usual strategy of watching it needs to be employed.
-public final class _RemoteClusterActorPersonality<Message: Codable> {
+/// @unchecked Sendable: Thread safety is provided by `_cachedAssociation` (ManagedAtomicLazyReference)
+/// for the lazily-loaded association, and `Association` itself is lock-protected. The remaining fields
+/// (`id`, `clusterShell`, `system`) are effectively immutable after init.
+public final class _RemoteClusterActorPersonality<Message: Codable>: @unchecked Sendable {
     let id: ActorID
 
     let clusterShell: ClusterShell

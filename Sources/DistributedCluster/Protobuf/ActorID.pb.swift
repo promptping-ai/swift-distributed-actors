@@ -140,13 +140,13 @@ extension _ProtoActorID: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementa
         4: .same(proto: "metadata"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _node: _ProtoClusterNode? = nil
         var _path: _ProtoActorPath? = nil
         var _incarnation: UInt32 = 0
         var _metadata: [String: Data] = [:]
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 
@@ -252,11 +252,11 @@ extension _ProtoClusterNode: SwiftProtobuf.Message, SwiftProtobuf._MessageImplem
         2: .same(proto: "nid"),
     ]
 
-    fileprivate class _StorageClass {
+    fileprivate class _StorageClass: @unchecked Sendable {
         var _endpoint: _ProtoClusterEndpoint? = nil
         var _nid: UInt64 = 0
 
-        static let defaultInstance = _StorageClass()
+        nonisolated(unsafe) static let defaultInstance = _StorageClass()
 
         private init() {}
 

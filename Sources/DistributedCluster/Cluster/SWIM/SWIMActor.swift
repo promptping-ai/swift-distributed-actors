@@ -44,11 +44,16 @@ internal distributed actor SWIMActor: SWIMPeer, SWIMAddressablePeer, CustomStrin
         )
     }
 
-    private lazy var log: Logger = {
-        var log = Logger(actor: self)
-        log.logLevel = self.settings.logger.logLevel
-        return log
-    }()
+    private var _log: Logger?
+    private var log: Logger {
+        get {
+            if let existing = _log { return existing }
+            var newLog = Logger(actor: self)
+            newLog.logLevel = self.settings.logger.logLevel
+            _log = newLog
+            return newLog
+        }
+    }
 
     var metrics: SWIM.Metrics {
         self.swim.metrics
@@ -185,77 +190,121 @@ internal distributed actor SWIMActor: SWIMPeer, SWIMAddressablePeer, CustomStrin
         let startedSendingPingRequestsSentAt: DispatchTime = .now()
         let pingRequestResponseTimeFirstTimer = self.swim.metrics.shell.pingRequestResponseTimeFirst
 
-        let firstSuccessful = await withTaskGroup(
-            of: SWIM.PingResponse<SWIMActor, SWIMActor>.self,
-            returning: SWIM.PingResponse<SWIMActor, SWIMActor>?.self
-        ) { [log, metrics, swim] group in
-            for pingRequest in directive.requestDetails {
-                group.addTask {
-                    let peerToPingRequestThrough = pingRequest.peerToPingRequestThrough
-                    let payload = pingRequest.payload
-                    let sequenceNumber = pingRequest.sequenceNumber
+        // nonisolated(unsafe): even though SWIMActor is Sendable (distributed actor),
+        // capturing 'self' in a closure defined inside an actor method makes the closure
+        // 'self-isolated' in Swift 6's region-based analysis. Using nonisolated(unsafe)
+        // breaks that tracking so withTaskGroup's body closure is not flagged as
+        // 'self-isolated' when passed to withTaskGroup.
+        nonisolated(unsafe) let selfRef = self
+        let log = self.log  // Logger: Sendable
+        let peerToPingUnsafe = peerToPing  // distributed actor = Sendable
+        let pingTimeoutUnsafe = pingTimeout  // Duration: Sendable
 
-                    log.trace("Sending ping request for [\(peerToPing)] to [\(peerToPingRequestThrough)] with payload: \(payload)")
+        // Counter and Timer are Sendable final classes — extract handles directly
+        // rather than capturing the non-Sendable SWIM.Metrics struct.
+        let messageOutboundCount = self.metrics.shell.messageOutboundCount
+        let pingRequestResponseTimeAll = self.metrics.shell.pingRequestResponseTimeAll
 
-                    let pingRequestSentAt: DispatchTime = .now()
-                    metrics.shell.messageOutboundCount.increment()
+        // UnsafeSendableBox: SWIM.Instance is not Sendable, but metadata(_:) is
+        // non-mutating and only used for debug logging in the error path.
+        // Thread safety: this function is actor-isolated; the box is read-only inside tasks.
+        let swimBox = UnsafeSendableBox(self.swim!)
 
-                    do {
-                        let response = try await peerToPingRequestThrough.pingRequest(
-                            target: peerToPing,
-                            payload: payload,
-                            from: self,
-                            timeout: pingTimeout,
-                            sequenceNumber: sequenceNumber
-                        )
-                        metrics.shell.pingRequestResponseTimeAll.recordInterval(since: pingRequestSentAt)
-                        return response
-                    } catch {
-                        log.debug(
-                            ".pingRequest resulted in error",
-                            metadata: swim!.metadata([  // !-safe, initialized in init()
-                                "swim/pingRequest/target": "\(peerToPing)",
-                                "swim/pingRequest/peerToPingRequestThrough": "\(peerToPingRequestThrough)",
-                                "swim/pingRequest/sequenceNumber": "\(sequenceNumber)",
-                                "error": "\(error)",
-                            ])
-                        )
+        // UnsafeSendableBox: [PingRequestDetail] is not Sendable, but is read-only
+        // inside the task group body. The box provides @unchecked Sendable conformance
+        // required for captures in the @Sendable groupBody closure below.
+        let directiveDetailsBox = UnsafeSendableBox(directive.requestDetails)
 
-                        // these are generally harmless thus we do not want to log them on higher levels
-                        log.trace(
-                            "Failed pingRequest",
-                            metadata: [
-                                "swim/target": "\(peerToPing)",
-                                "swim/payload": "\(payload)",
-                                "swim/pingTimeout": "\(pingTimeout)",
-                                "error": "\(error)",
-                            ]
-                        )
+        // nonisolated(unsafe) + @Sendable: any closure literal defined inside an actor
+        // method is classified as 'self-isolated' by Swift 6's region-based analysis.
+        // Storing the body in a nonisolated(unsafe) binding removes it from the actor's
+        // isolation region. Marking it @Sendable ensures the compiler verifies that all
+        // captures are Sendable (or @unchecked Sendable), satisfying withTaskGroup's
+        // 'sending' parameter requirement.
+        // Safety: all captures are Sendable/UnsafeSendableBox; no actor-isolated state
+        // is accessed inside the body.
+        nonisolated(unsafe) let groupBody:
+            @Sendable (inout TaskGroup<SWIM.PingResponse<SWIMActor, SWIMActor>>) async ->
+                [SWIM.PingResponse<SWIMActor, SWIMActor>] = { group in
+                    for pingRequest in directiveDetailsBox.value {
+                        // Extract Sendable fields from PingRequestDetail (not marked Sendable)
+                        // so the @sending group.addTask closure only captures Sendable values.
+                        let peerToPingRequestThrough = pingRequest.peerToPingRequestThrough  // SWIMActor: Sendable
+                        let payload = pingRequest.payload  // GossipPayload<SWIMActor>: Sendable
+                        let sequenceNumber = pingRequest.sequenceNumber  // UInt32: Sendable
 
-                        let response = SWIM.PingResponse<SWIMActor, SWIMActor>.timeout(
-                            target: peerToPing,
-                            pingRequestOrigin: self,
-                            timeout: pingTimeout,
-                            sequenceNumber: sequenceNumber
-                        )
-                        return response
+                        group.addTask {
+                            log.trace("Sending ping request for [\(peerToPingUnsafe)] to [\(peerToPingRequestThrough)] with payload: \(payload)")
+
+                            let pingRequestSentAt: DispatchTime = .now()
+                            messageOutboundCount.increment()
+
+                            do {
+                                let response = try await peerToPingRequestThrough.pingRequest(
+                                    target: peerToPingUnsafe,
+                                    payload: payload,
+                                    from: selfRef,
+                                    timeout: pingTimeoutUnsafe,
+                                    sequenceNumber: sequenceNumber
+                                )
+                                pingRequestResponseTimeAll.recordInterval(since: pingRequestSentAt)
+                                return response
+                            } catch {
+                                log.debug(
+                                    ".pingRequest resulted in error",
+                                    metadata: swimBox.value.metadata([
+                                        "swim/pingRequest/target": "\(peerToPingUnsafe)",
+                                        "swim/pingRequest/peerToPingRequestThrough": "\(peerToPingRequestThrough)",
+                                        "swim/pingRequest/sequenceNumber": "\(sequenceNumber)",
+                                        "error": "\(error)",
+                                    ])
+                                )
+
+                                // these are generally harmless thus we do not want to log them on higher levels
+                                log.trace(
+                                    "Failed pingRequest",
+                                    metadata: [
+                                        "swim/target": "\(peerToPingUnsafe)",
+                                        "swim/payload": "\(payload)",
+                                        "swim/pingTimeout": "\(pingTimeoutUnsafe)",
+                                        "error": "\(error)",
+                                    ]
+                                )
+
+                                let response = SWIM.PingResponse<SWIMActor, SWIMActor>.timeout(
+                                    target: peerToPingUnsafe,
+                                    pingRequestOrigin: selfRef,
+                                    timeout: pingTimeoutUnsafe,
+                                    sequenceNumber: sequenceNumber
+                                )
+                                return response
+                            }
+                        }
                     }
-                }
-            }
 
-            var firstSuccessful: SWIM.PingResponse<SWIMActor, SWIMActor>?
-            for await response in group {
-                self.handleEveryPingRequestResponse(response: response, pinged: peerToPing)
-
-                // We are only interested in successful ping responses (i.e. `ack`s), as a single success tells us the node is
-                // still alive. Therefore we propagate only the first success, but no failures.
-                // The failure case is handled through the timeout of the whole operation.
-                if case .ack = response, firstSuccessful == nil {
-                    pingRequestResponseTimeFirstTimer.recordInterval(since: startedSendingPingRequestsSentAt)
-                    firstSuccessful = response
+                    var results: [SWIM.PingResponse<SWIMActor, SWIMActor>] = []
+                    for await response in group {
+                        results.append(response)
+                    }
+                    return results
                 }
+        let allResponses: [SWIM.PingResponse<SWIMActor, SWIMActor>] = await withTaskGroup(
+            of: SWIM.PingResponse<SWIMActor, SWIMActor>.self,
+            returning: [SWIM.PingResponse<SWIMActor, SWIMActor>].self,
+            body: groupBody
+        )
+
+        // Process responses in actor-isolated context (after withTaskGroup body).
+        // We are only interested in successful ping responses (i.e. `ack`s), as a single success
+        // tells us the node is still alive. Therefore we propagate only the first success, but no failures.
+        // The failure case is handled through the timeout of the whole operation.
+        var firstSuccessful: SWIM.PingResponse<SWIMActor, SWIMActor>?
+        for response in allResponses {
+            self.handleEveryPingRequestResponse(response: response, pinged: peerToPing)
+            if case .ack = response, firstSuccessful == nil {
+                pingRequestResponseTimeFirstTimer.recordInterval(since: startedSendingPingRequestsSentAt)
+                firstSuccessful = response
             }
-            return firstSuccessful
         }
 
         if let pingRequestResponse = firstSuccessful {
@@ -551,7 +600,13 @@ internal distributed actor SWIMActor: SWIMPeer, SWIMAddressablePeer, CustomStrin
                 let directive = myself.swim.confirmDead(peer: node.asSWIMNode.swimShell(myself.actorSystem))
                 switch directive {
                 case .applied(let change):
-                    myself.log.warning("Confirmed node .dead: \(change)", metadata: myself.swim.metadata(["swim/change": "\(change)"]))
+                    // Convert change to String (Sendable) before passing to Logger @autoclosure
+                    // to avoid capturing non-Sendable MemberStatusChangedEvent across actor boundary.
+                    let changeDescription = "\(change)"
+                    myself.log.warning(
+                        "Confirmed node .dead: \(changeDescription)",
+                        metadata: myself.swim.metadata(["swim/change": .string(changeDescription)])
+                    )
                 case .ignored:
                     return
                 }

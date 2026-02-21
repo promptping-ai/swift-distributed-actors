@@ -115,6 +115,7 @@ extension ClusterSingletonPlugin: Plugin {
     public func stop(_ system: ClusterSystem) async {
         self.actorSystem = nil
         for (_, (_, boss)) in self.singletons {
+            nonisolated(unsafe) let boss = boss
             await boss.stop()
         }
     }

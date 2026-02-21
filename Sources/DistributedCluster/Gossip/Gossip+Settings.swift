@@ -16,7 +16,9 @@
 // MARK: Gossiper Settings
 
 extension Gossiper {
-    struct Settings {
+    // @unchecked Sendable: PeerDiscovery.onClusterMember contains a non-@Sendable closure.
+    // Phase 3: make the resolve closure @Sendable.
+    struct Settings: @unchecked Sendable {
         /// Interval at which gossip rounds should proceed.
         ///
         /// - SeeAlso: `intervalRandomFactor`

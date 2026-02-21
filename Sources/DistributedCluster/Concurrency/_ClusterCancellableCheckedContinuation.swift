@@ -26,7 +26,9 @@ internal final class ClusterCancellableCheckedContinuation<Success>: Hashable, @
 
     private let state: NIOLockedValueBox<_State> = .init(_State())
 
-    fileprivate init() {}
+    // internal (not fileprivate) so WorkerPool can inline the continuation
+    // setup directly on the actor's executor (see WorkerPool.selectWorker).
+    internal init() {}
 
     func setContinuation(_ continuation: CheckedContinuation<Success, any Error>) -> Bool {
         var alreadyCancelled = false
@@ -122,10 +124,11 @@ func _withClusterCancellableCheckedContinuation<Success>(
     function: String = #function
 ) async throws -> Success where Success: Sendable {
     let cccc = ClusterCancellableCheckedContinuation<Success>()
+    nonisolated(unsafe) let unsafeBody = body
     return try await withTaskCancellationHandler {
         try await withCheckedThrowingContinuation(function: function) { continuation in
             if cccc.setContinuation(continuation) {
-                body(cccc)
+                unsafeBody(cccc)
             }
         }
     } onCancel: {
