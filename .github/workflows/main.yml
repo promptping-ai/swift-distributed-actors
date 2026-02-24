@@ -24,7 +24,7 @@ jobs:
 
   construct-integration-tests-matrix:
     name: Construct integration matrix
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       integration-tests-matrix: '${{ steps.generate-matrix.outputs.integration-tests-matrix }}'
     steps:
@@ -49,7 +49,7 @@ jobs:
 
   construct-dining-philosophers-matrix:
     name: Construct dining philosophers matrix
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       dining-philosophers-matrix: '${{ steps.generate-matrix.outputs.dining-philosophers-matrix }}'
     steps:
